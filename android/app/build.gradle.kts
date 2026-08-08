@@ -31,7 +31,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "abc.123.xyz"
+        // Android forbids digit-leading segments; desktop bundle id stays abc.123.xyz
+        applicationId = "abc.n123.xyz"
         minSdk = 26
         targetSdk = 36
         versionCode = flutter.versionCode

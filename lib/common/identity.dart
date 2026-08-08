@@ -5,7 +5,10 @@ class AppIdentity {
 
   static const productName = 'Magic';
   static const devSuffix = 'Dev';
+  /// Desktop / Apple bundle id (numeric segments allowed).
   static const packageId = 'abc.123.xyz';
+  /// Android applicationId — each segment must start with a letter.
+  static const androidPackageId = 'abc.n123.xyz';
 
   static const compactName = isDev ? '$productName$devSuffix' : productName;
   static const displayName = isDev ? '$productName Dev' : productName;

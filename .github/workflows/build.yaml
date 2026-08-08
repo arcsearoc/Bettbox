@@ -4,11 +4,21 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 'Build env'
+        required: true
+        default: 'stable'
+        type: choice
+        options:
+          - stable
+          - pre
 
 env:
-  IS_STABLE: ${{ !contains(github.ref, '-') }}
-  IS_PRERELEASE: ${{ contains(github.ref_name, 'pre') }}
-  SHOULD_RELEASE: ${{ !contains(github.ref, '-') || contains(github.ref_name, 'pre') }}
+  IS_STABLE: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.env == 'stable') || (github.event_name != 'workflow_dispatch' && !contains(github.ref, '-')) }}
+  IS_PRERELEASE: ${{ github.event_name != 'workflow_dispatch' && contains(github.ref_name, 'pre') }}
+  SHOULD_RELEASE: ${{ github.event_name != 'workflow_dispatch' && (!contains(github.ref, '-') || contains(github.ref_name, 'pre')) }}
   GRADLE_OPTS: -Dorg.gradle.vfs.watch=false
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   SENTRY_BACKEND: none
@@ -180,7 +190,7 @@ jobs:
           FILE="${MOD_CACHE}/github.com/metacubex/sing-tun@${SING_TUN_VERSION}/tun_windows.go"
           echo "Patching ${FILE}"
           chmod +w "${FILE}"
-      - name: Build Bettbox (Non-Windows)
+      - name: Build Magic (Non-Windows)
         if: matrix.platform != 'windows'
         shell: bash
         env:
@@ -240,7 +250,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: unsigned-core-${{ matrix.arch }}-${{ matrix.compatible }}
-          path: libclash/windows/BettboxCore.exe
+          path: libclash/windows/MagicCore.exe
           if-no-files-found: error
           retention-days: 1
 
@@ -262,7 +272,7 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          $signedCoreHash = (Get-FileHash libclash/windows/BettboxCore.exe -Algorithm SHA256).Hash.ToLower()
+          $signedCoreHash = (Get-FileHash libclash/windows/MagicCore.exe -Algorithm SHA256).Hash.ToLower()
           Write-Host "Signed Core SHA256 (TOKEN for Helper): $signedCoreHash"
           dart setup.dart windows --arch ${{ matrix.arch }} --out helper --core-hash $signedCoreHash ${{ matrix.compatible == true && '--compatible' || '' }}
 
@@ -272,7 +282,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: unsigned-helper-${{ matrix.arch }}-${{ matrix.compatible }}
-          path: libclash/windows/BettboxHelperService.exe
+          path: libclash/windows/MagicHelperService.exe
           if-no-files-found: error
           retention-days: 1
 
@@ -290,13 +300,13 @@ jobs:
           wait-for-completion: true
           output-artifact-directory: 'libclash/windows'
 
-      - name: Build Bettbox (Windows)
+      - name: Build Magic (Windows)
         if: matrix.platform == 'windows'
         shell: pwsh
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
-          $coreHash = (Get-FileHash libclash/windows/BettboxCore.exe -Algorithm SHA256).Hash.ToLower()
+          $coreHash = (Get-FileHash libclash/windows/MagicCore.exe -Algorithm SHA256).Hash.ToLower()
           Write-Host "Core SHA256: $coreHash"
           
           $desc = if ('${{ matrix.compatible }}' -eq 'true') { "${{ matrix.arch }}-compatible" } else { "${{ matrix.arch }}" }
@@ -314,17 +324,17 @@ jobs:
           
           flutter @flutterArgs
 
-      - name: Upload Unsigned Bettbox
+      - name: Upload Unsigned Magic
         if: matrix.platform == 'windows' && env.SIGNPATH_API_TOKEN != ''
         id: upload-bettbox
         uses: actions/upload-artifact@v7
         with:
-          name: unsigned-bettbox-${{ matrix.arch }}-${{ matrix.compatible }}
-          path: build/windows/${{ matrix.arch == 'arm64' && 'arm64' || 'x64' }}/runner/Release/Bettbox.exe
+          name: unsigned-magic-${{ matrix.arch }}-${{ matrix.compatible }}
+          path: build/windows/${{ matrix.arch == 'arm64' && 'arm64' || 'x64' }}/runner/Release/Magic.exe
           if-no-files-found: error
           retention-days: 1
 
-      - name: Sign Bettbox (Windows)
+      - name: Sign Magic (Windows)
         if: matrix.platform == 'windows' && env.SIGNPATH_API_TOKEN != ''
         uses: signpath/github-action-submit-signing-request@v2
         timeout-minutes: 60
@@ -349,7 +359,7 @@ jobs:
         shell: pwsh
         run: |
           $desc = if ('${{ matrix.compatible }}' -eq 'true') { "${{ matrix.arch }}-compatible" } else { "${{ matrix.arch }}" }
-          $installer = (Resolve-Path "dist/Bettbox-*-windows-$desc-setup.exe").Path
+          $installer = (Resolve-Path "dist/Magic-*-windows-$desc-setup.exe").Path
           echo "INSTALLER_PATH=$installer" | Out-File -FilePath $env:GITHUB_ENV -Append
           echo "INSTALLER_FILENAME=$(Split-Path -Leaf $installer)" | Out-File -FilePath $env:GITHUB_ENV -Append
 
@@ -384,7 +394,7 @@ jobs:
           name: |
             unsigned-core-${{ matrix.arch }}-${{ matrix.compatible }}
             unsigned-helper-${{ matrix.arch }}-${{ matrix.compatible }}
-            unsigned-bettbox-${{ matrix.arch }}-${{ matrix.compatible }}
+            unsigned-magic-${{ matrix.arch }}-${{ matrix.compatible }}
             unsigned-installer-${{ matrix.arch }}-${{ matrix.compatible }}
           failOnError: false
       
@@ -392,27 +402,27 @@ jobs:
         if: matrix.platform == 'linux' && matrix.compatible != true
         shell: bash
         run: |
-          echo "=== Verifying BettboxCore setuid in DEB package ==="
-          if ls dist/Bettbox-*.deb 1>/dev/null 2>&1; then
-            DEB_PERMS=$(dpkg-deb -c dist/Bettbox-*.deb | grep BettboxCore || true)
+          echo "=== Verifying MagicCore setuid in DEB package ==="
+          if ls dist/Magic-*.deb 1>/dev/null 2>&1; then
+            DEB_PERMS=$(dpkg-deb -c dist/Magic-*.deb | grep MagicCore || true)
             echo "$DEB_PERMS"
             if echo "$DEB_PERMS" | grep -q 'rws'; then
-              echo "OK: BettboxCore in DEB has setuid bit"
+              echo "OK: MagicCore in DEB has setuid bit"
             else
-              echo "WARNING: BettboxCore in DEB is missing setuid bit (will be set by postinst on install)"
-              POSTINST=$(dpkg-deb -e dist/Bettbox-*.deb /tmp/bettbox-deb-control && cat /tmp/bettbox-deb-control/postinst || true)
-              if ! echo "$POSTINST" | grep -q '/usr/share/Bettbox/BettboxCore'; then
-                echo "ERROR: postinst script does not set permissions on /usr/share/Bettbox/BettboxCore"
+              echo "WARNING: MagicCore in DEB is missing setuid bit (will be set by postinst on install)"
+              POSTINST=$(dpkg-deb -e dist/Magic-*.deb /tmp/magic-deb-control && cat /tmp/magic-deb-control/postinst || true)
+              if ! echo "$POSTINST" | grep -q '/usr/share/Magic/MagicCore'; then
+                echo "ERROR: postinst script does not set permissions on /usr/share/Magic/MagicCore"
                 exit 1
               fi
             fi
           fi
-          echo "=== Verifying BettboxCore setuid in RPM package ==="
-          if ls dist/Bettbox-*.rpm 1>/dev/null 2>&1; then
-            RPM_PERMS=$(rpm -qplv dist/Bettbox-*.rpm | grep BettboxCore || true)
+          echo "=== Verifying MagicCore setuid in RPM package ==="
+          if ls dist/Magic-*.rpm 1>/dev/null 2>&1; then
+            RPM_PERMS=$(rpm -qplv dist/Magic-*.rpm | grep MagicCore || true)
             echo "$RPM_PERMS"
             if ! echo "$RPM_PERMS" | grep -q 'rws'; then
-              echo "ERROR: BettboxCore in RPM is missing setuid bit"
+              echo "ERROR: MagicCore in RPM is missing setuid bit"
               exit 1
             fi
           fi
@@ -420,7 +430,7 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: Bettbox-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.compatible == true && '-compatible' || '' }}
+          name: Magic-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.compatible == true && '-compatible' || '' }}
           path: ./dist
           compression-level: 9
           overwrite: true
@@ -439,7 +449,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           path: ./dist/
-          pattern: Bettbox-*
+          pattern: Magic-*
           merge-multiple: true
 
       - name: Generate release.md
