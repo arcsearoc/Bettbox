@@ -1,0 +1,50 @@
+# WebSocket 优先优化说明（fork: optimize-ws）
+
+基于实测：**WebSocket 最稳、测速最快**。默认传输仍为 `ws`。
+
+## 你的使用方式（无需 `PROXYIP` 环境变量）
+
+部署后用后台 **【优选订阅生成】** → Magic 更新订阅即可。
+
+## Worker（`_worker.js`）改动
+
+| 项 | 作用 |
+|----|------|
+| 预加载竞速拨号默认开 | 域名多 IP 竞速建连 |
+| 反代并发默认 2 | 路径内反代更快试通 |
+| 建连超时 1200ms 可配 | 直连失败更快回落 |
+| DNS UDP 三路竞速 | 隧道内 DNS 更稳 |
+| 旧配置缺省补齐 | 未设置时默认开 **0-RTT**、**UDP/XUDP**、指纹 chrome、传输 ws |
+| Clash 热补丁增强 | 给 WS 节点补 `client-fingerprint` / `udp`/`xudp` / `max-early-data`（不覆盖已有值） |
+
+## Magic 客户端（Bettbox `lib/state.dart`）改动
+
+`patchRawConfig` 对订阅节点缺省补齐（不覆盖显式配置）：
+
+- TLS 节点：`client-fingerprint: chrome`
+- VLESS/VMess + WS：`udp` / `xudp`
+- 路径含 `ed=` 时写入 `ws-opts.max-early-data` + `Sec-WebSocket-Protocol`
+
+## 面板建议
+
+1. 传输：**WebSocket**  
+2. **启用 0-RTT**：开（旧配置若从未写过该字段，部署新 Worker 后会默认视为开）  
+3. 指纹：chrome  
+4. 跑一次 **优选订阅生成** → Magic 更新订阅  
+
+## 可选环境变量（均非必须）
+
+`PRELOAD_RACE_DIAL` / `TCP_CONCURRENT_DIAL` / `PROXY_CONCURRENT_DIAL` / `CONNECT_TIMEOUT_MS` / `DEBUG`
+
+**不需要 `PROXYIP`。**
+
+## 部署顺序
+
+1. 部署本仓库 `_worker.js`  
+2. 确认面板 0-RTT + WS  
+3. 重新生成优选订阅  
+4. 使用已改 `patchRawConfig` 的 Magic 客户端刷新配置  
+
+## 边界
+
+优选线路质量仍是测速上限主因；两侧优化主要改善 **建连、DNS、WS 首包、指纹/UDP 完整性**。

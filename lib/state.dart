@@ -896,19 +896,58 @@ class GlobalState {
         if (proxy is! Map) continue;
 
         final type = proxy['type']?.toString().toLowerCase();
+        final network = proxy['network']?.toString().toLowerCase();
         final isTls = proxy['tls'] == true;
 
-        bool supportClientFingerprint = false;
-        if (type == 'trojan' || type == 'anytls') {
-          supportClientFingerprint = true;
-        } else if ((type == 'vmess' || type == 'vless') && isTls) {
-          supportClientFingerprint = true;
+        final supportClientFingerprint =
+            type == 'trojan' ||
+            type == 'anytls' ||
+            ((type == 'vmess' || type == 'vless') && isTls);
+
+        // 缺省补指纹（对齐 edgetunnel/CF WS）；不覆盖订阅显式值
+        if (supportClientFingerprint && proxy['client-fingerprint'] == null) {
+          proxy['client-fingerprint'] =
+              globalClientFingerprint ?? 'chrome';
         }
 
-        if (supportClientFingerprint) {
-          if (globalClientFingerprint != null &&
-              proxy['client-fingerprint'] == null) {
-            proxy['client-fingerprint'] = globalClientFingerprint;
+        // VLESS/VMess + WS：缺省补 UDP；路径里的 ed= 提升到 ws-opts（0-RTT）
+        if ((type == 'vless' || type == 'vmess') &&
+            (network == 'ws' || network == 'httpupgrade')) {
+          proxy['udp'] ??= true;
+          if (type == 'vless' &&
+              proxy['packet-addr'] != true &&
+              proxy['xudp'] == null &&
+              proxy['packet-encoding'] == null) {
+            proxy['xudp'] = true;
+          }
+
+          final rawWsOpts = proxy['ws-opts'];
+          final wsOpts = <String, dynamic>{};
+          if (rawWsOpts is Map) {
+            rawWsOpts.forEach((key, value) {
+              wsOpts[key.toString()] = value;
+            });
+          }
+          final path = wsOpts['path']?.toString();
+          if (path != null &&
+              wsOpts['max-early-data'] == null &&
+              path.contains('ed=')) {
+            final uri = Uri.tryParse(
+              path.contains('://') ? path : 'ws://local$path',
+            );
+            final ed = int.tryParse(uri?.queryParameters['ed'] ?? '');
+            if (ed != null && ed > 0) {
+              if (network == 'ws') {
+                wsOpts['max-early-data'] = ed;
+                wsOpts['early-data-header-name'] ??=
+                    'Sec-WebSocket-Protocol';
+              } else {
+                wsOpts['v2ray-http-upgrade-fast-open'] ??= true;
+              }
+            }
+          }
+          if (wsOpts.isNotEmpty) {
+            proxy['ws-opts'] = wsOpts;
           }
         }
 
