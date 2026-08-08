@@ -438,7 +438,7 @@ class AppController {
       final profile = profiles
           .where((e) => e.id == currentProfileId)
           .firstOrNull;
-      final profileName = profile?.label ?? 'Bettbox';
+      final profileName = profile?.label ?? AppIdentity.displayName;
       final speedInfo = traffic.toString();
       await vpn_service.service?.updateNotificationSpeed(
         profileName,
@@ -1079,7 +1079,7 @@ class AppController {
             ? tagName.substring(1)
             : tagName;
         downloadUrl =
-            'https://github.com/$repository/releases/download/$tagName/Bettbox-$versionWithoutV-$assetSuffix';
+            'https://github.com/$repository/releases/download/$tagName/Magic-$versionWithoutV-$assetSuffix';
       }
 
       globalState.openUrl(downloadUrl);
@@ -1737,7 +1737,7 @@ class AppController {
 
       // Add marker file
       final markerData = json.encode({
-        'app': 'Bettbox',
+        'app': AppIdentity.productName,
         'version': '1.0',
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       });

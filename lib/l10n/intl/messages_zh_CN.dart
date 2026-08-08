@@ -257,10 +257,20 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "discoverNewVersion": MessageLookupByLibrary.simpleMessage("发现新版本"),
     "discovery": MessageLookupByLibrary.simpleMessage("发现新版本"),
+    "dnsAntiLeakPreset": MessageLookupByLibrary.simpleMessage("防泄漏预设"),
+    "dnsAntiLeakPresetConfirm": MessageLookupByLibrary.simpleMessage(
+      "将应用防泄漏 DNS 预设并开启覆写 DNS，是否继续？",
+    ),
+    "dnsAntiLeakPresetDesc": MessageLookupByLibrary.simpleMessage(
+      "一键应用推荐的 fake-ip + respect-rules 配置",
+    ),
     "dnsDesc": MessageLookupByLibrary.simpleMessage("更新DNS相关设置"),
     "dnsHijack": MessageLookupByLibrary.simpleMessage("DNS劫持"),
     "dnsHijackDesc": MessageLookupByLibrary.simpleMessage("将解析导入内部DNS模块"),
     "dnsMode": MessageLookupByLibrary.simpleMessage("DNS模式"),
+    "dnsYamlInvalid": MessageLookupByLibrary.simpleMessage(
+      "DNS YAML 格式无效，请检查后重试",
+    ),
     "doYouWantToPass": MessageLookupByLibrary.simpleMessage("是否要通过"),
     "domain": MessageLookupByLibrary.simpleMessage("域名"),
     "doubleBounce": MessageLookupByLibrary.simpleMessage("双重弹奏"),
@@ -269,6 +279,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "dozeSuspendDesc": MessageLookupByLibrary.simpleMessage("开启后同步系统Doze休眠模式"),
     "edit": MessageLookupByLibrary.simpleMessage("编辑"),
     "editTunnel": MessageLookupByLibrary.simpleMessage("编辑转发"),
+    "editDnsYaml": MessageLookupByLibrary.simpleMessage("编辑 DNS YAML"),
+    "editDnsYamlDesc": MessageLookupByLibrary.simpleMessage(
+      "粘贴或编辑完整 DNS 配置，保存后自动开启覆写",
+    ),
     "emptyTip": m3,
     "enableCrashReport": MessageLookupByLibrary.simpleMessage("应用崩溃分析"),
     "enableCrashReportDesc": MessageLookupByLibrary.simpleMessage(

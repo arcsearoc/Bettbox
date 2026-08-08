@@ -373,12 +373,22 @@ class MessageLookup extends MessageLookupByLibrary {
       "Доступна новая версия",
     ),
     "discovery": MessageLookupByLibrary.simpleMessage("Доступно обновление"),
+    "dnsAntiLeakPreset": MessageLookupByLibrary.simpleMessage("Пресет против утечек"),
+    "dnsAntiLeakPresetConfirm": MessageLookupByLibrary.simpleMessage(
+      "Применить пресет DNS против утечек и включить переопределение DNS?",
+    ),
+    "dnsAntiLeakPresetDesc": MessageLookupByLibrary.simpleMessage(
+      "Применить рекомендуемые настройки fake-ip + respect-rules",
+    ),
     "dnsDesc": MessageLookupByLibrary.simpleMessage("Настройки DNS"),
     "dnsHijack": MessageLookupByLibrary.simpleMessage("Перехват DNS"),
     "dnsHijackDesc": MessageLookupByLibrary.simpleMessage(
       "Перенаправить разбор в модуль DNS",
     ),
     "dnsMode": MessageLookupByLibrary.simpleMessage("Режим DNS"),
+    "dnsYamlInvalid": MessageLookupByLibrary.simpleMessage(
+      "Некорректный DNS YAML. Проверьте и попробуйте снова.",
+    ),
     "doYouWantToPass": MessageLookupByLibrary.simpleMessage("Пропустить"),
     "domain": MessageLookupByLibrary.simpleMessage("Домен"),
     "doubleBounce": MessageLookupByLibrary.simpleMessage("Двойной отскок"),
@@ -390,6 +400,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "edit": MessageLookupByLibrary.simpleMessage("Редактировать"),
     "editTunnel": MessageLookupByLibrary.simpleMessage(
       "Изменить перенаправление",
+    ),
+    "editDnsYaml": MessageLookupByLibrary.simpleMessage("Редактировать DNS YAML"),
+    "editDnsYamlDesc": MessageLookupByLibrary.simpleMessage(
+      "Вставьте или отредактируйте полный DNS-конфиг; при сохранении включится переопределение",
     ),
     "emptyTip": m3,
     "enableCrashReport": MessageLookupByLibrary.simpleMessage("Анализ сбоев"),

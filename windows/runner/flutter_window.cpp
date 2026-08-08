@@ -9,9 +9,9 @@
 #include "resource.h"
 
 #ifdef BETTBOX_DEV
-#define BETTBOX_REG_KEY L"Software\\BettboxDev"
+#define BETTBOX_REG_KEY L"Software\\MagicDev"
 #else
-#define BETTBOX_REG_KEY L"Software\\Bettbox"
+#define BETTBOX_REG_KEY L"Software\\Magic"
 #endif
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)

@@ -293,12 +293,22 @@ class MessageLookup extends MessageLookupByLibrary {
       "新しいバージョンが見つかりました",
     ),
     "discovery": MessageLookupByLibrary.simpleMessage("新バージョン検出"),
+    "dnsAntiLeakPreset": MessageLookupByLibrary.simpleMessage("漏洩防止プリセット"),
+    "dnsAntiLeakPresetConfirm": MessageLookupByLibrary.simpleMessage(
+      "漏洩防止DNSプリセットを適用し、DNSオーバーライドを有効にしますか？",
+    ),
+    "dnsAntiLeakPresetDesc": MessageLookupByLibrary.simpleMessage(
+      "推奨の fake-ip + respect-rules 設定を適用",
+    ),
     "dnsDesc": MessageLookupByLibrary.simpleMessage("DNS関連の設定を更新"),
     "dnsHijack": MessageLookupByLibrary.simpleMessage("DNSハイジャック"),
     "dnsHijackDesc": MessageLookupByLibrary.simpleMessage(
       "DNSクエリを内部DNSモジュールに引き込み",
     ),
     "dnsMode": MessageLookupByLibrary.simpleMessage("DNSモード"),
+    "dnsYamlInvalid": MessageLookupByLibrary.simpleMessage(
+      "DNS YAMLの形式が無効です。確認して再試行してください",
+    ),
     "doYouWantToPass": MessageLookupByLibrary.simpleMessage("許可しますか："),
     "domain": MessageLookupByLibrary.simpleMessage("ドメイン"),
     "doubleBounce": MessageLookupByLibrary.simpleMessage("ダブルバウンス"),
@@ -309,6 +319,10 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "edit": MessageLookupByLibrary.simpleMessage("編集"),
     "editTunnel": MessageLookupByLibrary.simpleMessage("転送編集"),
+    "editDnsYaml": MessageLookupByLibrary.simpleMessage("DNS YAMLを編集"),
+    "editDnsYamlDesc": MessageLookupByLibrary.simpleMessage(
+      "DNS設定全体を貼り付け/編集。保存時にオーバーライドを有効化",
+    ),
     "emptyTip": m3,
     "enableCrashReport": MessageLookupByLibrary.simpleMessage("クラッシュ分析"),
     "enableCrashReportDesc": MessageLookupByLibrary.simpleMessage(

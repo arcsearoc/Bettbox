@@ -13,7 +13,7 @@ class Window {
     if (system.isWindows) {
       protocol.register('clash');
       protocol.register('clashmeta');
-      protocol.register('bettbox');
+      protocol.register('magic');
     }
     await windowManager.ensureInitialized();
     WindowOptions windowOptions = WindowOptions(

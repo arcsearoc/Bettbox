@@ -366,12 +366,22 @@ class MessageLookup extends MessageLookupByLibrary {
       "نسخه جدیدی پیدا شد",
     ),
     "discovery": MessageLookupByLibrary.simpleMessage("نسخه جدید یافت شد"),
+    "dnsAntiLeakPreset": MessageLookupByLibrary.simpleMessage("پیش‌فرض ضد نشت"),
+    "dnsAntiLeakPresetConfirm": MessageLookupByLibrary.simpleMessage(
+      "پیش‌فرض ضد نشت DNS اعمال و اورراید DNS فعال شود؟",
+    ),
+    "dnsAntiLeakPresetDesc": MessageLookupByLibrary.simpleMessage(
+      "اعمال تنظیمات توصیه‌شده fake-ip + respect-rules",
+    ),
     "dnsDesc": MessageLookupByLibrary.simpleMessage("تنظیمات مربوط به DNS"),
     "dnsHijack": MessageLookupByLibrary.simpleMessage("ربودن DNS"),
     "dnsHijackDesc": MessageLookupByLibrary.simpleMessage(
       "هدایت استعلام‌های DNS به ماژول داخلی",
     ),
     "dnsMode": MessageLookupByLibrary.simpleMessage("حالت DNS"),
+    "dnsYamlInvalid": MessageLookupByLibrary.simpleMessage(
+      "YAML مربوط به DNS نامعتبر است. لطفاً بررسی و دوباره تلاش کنید",
+    ),
     "doYouWantToPass": MessageLookupByLibrary.simpleMessage(
       "آیا می‌خواهید مجوز دهید برای:",
     ),
@@ -384,6 +394,10 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "edit": MessageLookupByLibrary.simpleMessage("ویرایش"),
     "editTunnel": MessageLookupByLibrary.simpleMessage("ویرایش هدایت"),
+    "editDnsYaml": MessageLookupByLibrary.simpleMessage("ویرایش DNS YAML"),
+    "editDnsYamlDesc": MessageLookupByLibrary.simpleMessage(
+      "کل پیکربندی DNS را بچسبانید یا ویرایش کنید؛ با ذخیره، اورراید فعال می‌شود",
+    ),
     "emptyTip": m3,
     "enableCrashReport": MessageLookupByLibrary.simpleMessage("تحلیل خرابی‌ها"),
     "enableCrashReportDesc": MessageLookupByLibrary.simpleMessage(

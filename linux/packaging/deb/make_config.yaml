@@ -1,5 +1,5 @@
-display_name: Bettbox
-package_name: Bettbox
+display_name: Magic
+package_name: Magic
 maintainer:
   name: appshub
   email: appshubcc@gmail.com
@@ -15,13 +15,13 @@ dependencies:
   - libkeybinder-3.0-dev
 
 keywords:
-  - Bettbox
+  - Magic
   - Clash
   - ClashMeta
   - Mihomo
   - Proxy
 
-generic_name: Bettbox
+generic_name: Magic
 
 categories:
   - Network
@@ -30,14 +30,14 @@ startup_notify: true
 
 postinstall_scripts:
   - |
-    CORE_PATH="/usr/share/Bettbox/BettboxCore"
+    CORE_PATH="/usr/share/Magic/MagicCore"
     if [ -f "$CORE_PATH" ]; then
       chown root:root "$CORE_PATH" 2>/dev/null || true
       chmod +sx "$CORE_PATH" 2>/dev/null || true
     fi
 postuninstall_scripts:
   - |
-    CORE_PATH="/usr/share/Bettbox/BettboxCore"
+    CORE_PATH="/usr/share/Magic/MagicCore"
     if [ -f "$CORE_PATH" ]; then
       chmod -s "$CORE_PATH" 2>/dev/null || true
     fi

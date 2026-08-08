@@ -14,7 +14,7 @@ const tunDeviceName = AppIdentity.tunDeviceName;
 const browserUa =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36';
 const packageName = AppIdentity.packageId;
-final unixSocketPath = '/tmp/BettboxSocket_${Random().nextInt(10000)}.sock';
+final unixSocketPath = '/tmp/MagicSocket_${Random().nextInt(10000)}.sock';
 const maxTextScale = 1.4;
 const minTextScale = 0.8;
 final baseInfoEdgeInsets = EdgeInsets.symmetric(
@@ -134,9 +134,9 @@ double getWidgetHeight(num lines) {
 
 const maxLength = 256;
 
-final mainIsolate = 'BettboxMainIsolate';
+final mainIsolate = 'MagicMainIsolate';
 
-final serviceIsolate = 'BettboxServiceIsolate';
+final serviceIsolate = 'MagicServiceIsolate';
 
 const defaultPrimaryColors = [
   0xFF191919,

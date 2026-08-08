@@ -372,12 +372,22 @@ class MessageLookup extends MessageLookupByLibrary {
       "New Version Available",
     ),
     "discovery": MessageLookupByLibrary.simpleMessage("New Version Found"),
+    "dnsAntiLeakPreset": MessageLookupByLibrary.simpleMessage("Anti-leak preset"),
+    "dnsAntiLeakPresetConfirm": MessageLookupByLibrary.simpleMessage(
+      "Apply the anti-leak DNS preset and enable Override DNS?",
+    ),
+    "dnsAntiLeakPresetDesc": MessageLookupByLibrary.simpleMessage(
+      "Apply recommended fake-ip + respect-rules DNS settings",
+    ),
     "dnsDesc": MessageLookupByLibrary.simpleMessage("DNS-related settings"),
     "dnsHijack": MessageLookupByLibrary.simpleMessage("DNS Hijack"),
     "dnsHijackDesc": MessageLookupByLibrary.simpleMessage(
       "Redirect DNS queries to internal DNS module",
     ),
     "dnsMode": MessageLookupByLibrary.simpleMessage("DNS Mode"),
+    "dnsYamlInvalid": MessageLookupByLibrary.simpleMessage(
+      "Invalid DNS YAML. Please check and try again.",
+    ),
     "doYouWantToPass": MessageLookupByLibrary.simpleMessage(
       "Do you want to pass",
     ),
@@ -390,6 +400,10 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "edit": MessageLookupByLibrary.simpleMessage("Edit"),
     "editTunnel": MessageLookupByLibrary.simpleMessage("Edit Forwarding"),
+    "editDnsYaml": MessageLookupByLibrary.simpleMessage("Edit DNS YAML"),
+    "editDnsYamlDesc": MessageLookupByLibrary.simpleMessage(
+      "Paste or edit the full DNS config; override is enabled on save",
+    ),
     "emptyTip": m3,
     "enableCrashReport": MessageLookupByLibrary.simpleMessage(
       "Crash Analytics",

@@ -416,10 +416,10 @@ _Config _$ConfigFromJson(Map<String, dynamic> json) => _Config(
           .toList() ??
       const [],
   currentProfileId: json['currentProfileId'] as String?,
-  overrideDns: json['overrideDns'] as bool? ?? false,
+  overrideDns: json['overrideDns'] as bool? ?? true,
   overrideNtp: json['overrideNtp'] as bool? ?? false,
   overrideSniffer: json['overrideSniffer'] as bool? ?? false,
-  overrideTunnel: json['overrideTunnel'] as bool? ?? false,
+  overrideTunnel: json['overrideTunnel'] as bool? ?? true,
   overrideExperimental: json['overrideExperimental'] as bool? ?? false,
   overrideTestUrl: json['overrideTestUrl'] as bool? ?? true,
   dav: json['dav'] == null

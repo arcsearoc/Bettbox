@@ -109,7 +109,7 @@ class ExternalControl {
       }
     }
 
-    throw StateError('Bettbox is not running');
+    throw StateError('Magic is not running');
   }
 
   static Future<void> _sendUnixCommand(

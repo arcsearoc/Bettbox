@@ -2899,6 +2899,66 @@ class AppLocalizations {
     );
   }
 
+  /// `Edit DNS YAML`
+  String get editDnsYaml {
+    return Intl.message(
+      'Edit DNS YAML',
+      name: 'editDnsYaml',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Paste or edit the full DNS config; override is enabled on save`
+  String get editDnsYamlDesc {
+    return Intl.message(
+      'Paste or edit the full DNS config; override is enabled on save',
+      name: 'editDnsYamlDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Anti-leak preset`
+  String get dnsAntiLeakPreset {
+    return Intl.message(
+      'Anti-leak preset',
+      name: 'dnsAntiLeakPreset',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Apply recommended fake-ip + respect-rules DNS settings`
+  String get dnsAntiLeakPresetDesc {
+    return Intl.message(
+      'Apply recommended fake-ip + respect-rules DNS settings',
+      name: 'dnsAntiLeakPresetDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Apply the anti-leak DNS preset and enable Override DNS?`
+  String get dnsAntiLeakPresetConfirm {
+    return Intl.message(
+      'Apply the anti-leak DNS preset and enable Override DNS?',
+      name: 'dnsAntiLeakPresetConfirm',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Invalid DNS YAML. Please check and try again.`
+  String get dnsYamlInvalid {
+    return Intl.message(
+      'Invalid DNS YAML. Please check and try again.',
+      name: 'dnsYamlInvalid',
+      desc: '',
+      args: [],
+    );
+  }
+
   /// `Override Config`
   String get overrideTestUrl {
     return Intl.message(

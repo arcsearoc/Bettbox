@@ -41,3 +41,4 @@ export 'tray.dart';
 export 'ui_manager.dart';
 export 'utils.dart';
 export 'window.dart';
+export 'yaml_util.dart';

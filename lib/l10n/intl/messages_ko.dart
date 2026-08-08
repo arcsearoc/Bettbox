@@ -305,12 +305,22 @@ class MessageLookup extends MessageLookupByLibrary {
       "새로운 버전을 발견했습니다",
     ),
     "discovery": MessageLookupByLibrary.simpleMessage("새 버전 발견"),
+    "dnsAntiLeakPreset": MessageLookupByLibrary.simpleMessage("누출 방지 프리셋"),
+    "dnsAntiLeakPresetConfirm": MessageLookupByLibrary.simpleMessage(
+      "누출 방지 DNS 프리셋을 적용하고 DNS 오버라이드를 켤까요?",
+    ),
+    "dnsAntiLeakPresetDesc": MessageLookupByLibrary.simpleMessage(
+      "권장 fake-ip + respect-rules DNS 설정을 적용",
+    ),
     "dnsDesc": MessageLookupByLibrary.simpleMessage("DNS 관련 설정 업데이트"),
     "dnsHijack": MessageLookupByLibrary.simpleMessage("DNS 하이재킹"),
     "dnsHijackDesc": MessageLookupByLibrary.simpleMessage(
       "DNS 쿼리를 내부 DNS 모듈로 유입",
     ),
     "dnsMode": MessageLookupByLibrary.simpleMessage("DNS 모드"),
+    "dnsYamlInvalid": MessageLookupByLibrary.simpleMessage(
+      "DNS YAML 형식이 올바르지 않습니다. 확인 후 다시 시도하세요",
+    ),
     "doYouWantToPass": MessageLookupByLibrary.simpleMessage("다음 요청을 허용하시겠습니까:"),
     "domain": MessageLookupByLibrary.simpleMessage("도메인"),
     "doubleBounce": MessageLookupByLibrary.simpleMessage("더블 바운스"),
@@ -321,6 +331,10 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "edit": MessageLookupByLibrary.simpleMessage("편집"),
     "editTunnel": MessageLookupByLibrary.simpleMessage("포워딩 편집"),
+    "editDnsYaml": MessageLookupByLibrary.simpleMessage("DNS YAML 편집"),
+    "editDnsYamlDesc": MessageLookupByLibrary.simpleMessage(
+      "전체 DNS 설정을 붙여넣거나 편집합니다. 저장 시 오버라이드가 켜집니다",
+    ),
     "emptyTip": m3,
     "enableCrashReport": MessageLookupByLibrary.simpleMessage("크래시 분석"),
     "enableCrashReportDesc": MessageLookupByLibrary.simpleMessage(

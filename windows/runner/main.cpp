@@ -26,7 +26,7 @@ static std::wstring GetDumpDirectory() {
   if (!dir.empty() && dir.back() != L'\\') {
     dir += L'\\';
   }
-  dir += L"Bettbox\\crash_dumps";
+  dir += L"Magic\\crash_dumps";
   return dir;
 }
 
@@ -55,7 +55,7 @@ static LONG WINAPI BettboxUnhandledExceptionFilter(
                       .count();
 
   std::wostringstream filename;
-  filename << dir << L"\\bettbox_" << ms << L".dmp";
+  filename << dir << L"\\magic_" << ms << L".dmp";
 
   HANDLE file = ::CreateFileW(filename.str().c_str(), GENERIC_WRITE, 0, nullptr,
                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -110,9 +110,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 720);
 #ifdef BETTBOX_DEV
-  const wchar_t *window_title = L"Bettbox Dev";
+  const wchar_t *window_title = L"Magic Dev";
 #else
-  const wchar_t *window_title = L"Bettbox";
+  const wchar_t *window_title = L"Magic";
 #endif
   if (!window.Create(window_title, origin, size, !is_control_command)) {
     return EXIT_FAILURE;

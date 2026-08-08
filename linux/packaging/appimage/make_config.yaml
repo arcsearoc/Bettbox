@@ -1,14 +1,14 @@
-display_name: Bettbox
+display_name: Magic
 
 icon: ./assets/images/icon.png
 
 keywords:
-  - Bettbox
+  - Magic
   - Clash
   - ClashMeta
   - Proxy
 
-generic_name: Bettbox
+generic_name: Magic
 
 categories:
   - Network

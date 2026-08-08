@@ -261,10 +261,20 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "discoverNewVersion": MessageLookupByLibrary.simpleMessage("發現新版本"),
     "discovery": MessageLookupByLibrary.simpleMessage("發現新版本"),
+    "dnsAntiLeakPreset": MessageLookupByLibrary.simpleMessage("防洩漏預設"),
+    "dnsAntiLeakPresetConfirm": MessageLookupByLibrary.simpleMessage(
+      "將套用防洩漏 DNS 預設並開啟覆寫 DNS，是否繼續？",
+    ),
+    "dnsAntiLeakPresetDesc": MessageLookupByLibrary.simpleMessage(
+      "一鍵套用推薦的 fake-ip + respect-rules 配置",
+    ),
     "dnsDesc": MessageLookupByLibrary.simpleMessage("更新 DNS 相關設定"),
     "dnsHijack": MessageLookupByLibrary.simpleMessage("DNS 劫持"),
     "dnsHijackDesc": MessageLookupByLibrary.simpleMessage("將解析匯入內部 DNS 模組"),
     "dnsMode": MessageLookupByLibrary.simpleMessage("DNS 模式"),
+    "dnsYamlInvalid": MessageLookupByLibrary.simpleMessage(
+      "DNS YAML 格式無效，請檢查後重試",
+    ),
     "doYouWantToPass": MessageLookupByLibrary.simpleMessage("是否要通過"),
     "domain": MessageLookupByLibrary.simpleMessage("網域"),
     "doubleBounce": MessageLookupByLibrary.simpleMessage("雙重彈奏"),
@@ -275,6 +285,10 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "edit": MessageLookupByLibrary.simpleMessage("編輯"),
     "editTunnel": MessageLookupByLibrary.simpleMessage("編輯轉發"),
+    "editDnsYaml": MessageLookupByLibrary.simpleMessage("編輯 DNS YAML"),
+    "editDnsYamlDesc": MessageLookupByLibrary.simpleMessage(
+      "貼上或編輯完整 DNS 配置，儲存後自動開啟覆寫",
+    ),
     "emptyTip": m3,
     "enableCrashReport": MessageLookupByLibrary.simpleMessage("應用崩潰分析"),
     "enableCrashReportDesc": MessageLookupByLibrary.simpleMessage(

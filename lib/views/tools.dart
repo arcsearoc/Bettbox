@@ -930,6 +930,18 @@ class _ToolViewState extends ConsumerState<ToolsView> {
         onTap: (context, _) => _pushPage(context, 'DNS', const DnsListView()),
       ),
       _SearchItem(
+        title: appLocalizations.editDnsYaml,
+        subtitle: appLocalizations.editDnsYamlDesc,
+        category: dnsCategory,
+        onTap: (context, _) => _pushPage(context, 'DNS', const DnsListView()),
+      ),
+      _SearchItem(
+        title: appLocalizations.dnsAntiLeakPreset,
+        subtitle: appLocalizations.dnsAntiLeakPresetDesc,
+        category: dnsCategory,
+        onTap: (context, _) => _pushPage(context, 'DNS', const DnsListView()),
+      ),
+      _SearchItem(
         title: appLocalizations.status,
         subtitle: appLocalizations.statusDesc,
         category: dnsCategory,

@@ -1,4 +1,4 @@
-display_name: Bettbox
+display_name: Magic
 
 packager: appshub
 packagerEmail: appshubcc@gmail.com
@@ -11,12 +11,12 @@ essential: false
 icon: ./assets/images/icon.png
 
 keywords:
-  - Bettbox
+  - Magic
   - Clash
   - ClashMeta
   - Proxy
 
-generic_name: Bettbox
+generic_name: Magic
 
 group: Applications/Internet
 
@@ -31,8 +31,8 @@ install: |
   ln -s ../share/%{name}/%{name} %{buildroot}%{_bindir}/%{name}
   cp -r %{name}.desktop %{buildroot}%{_datadir}/applications
   cp -r %{name}.png %{buildroot}%{_datadir}/pixmaps
-  chmod +sx %{buildroot}%{_datadir}/%{name}/BettboxCore
+  chmod +sx %{buildroot}%{_datadir}/%{name}/MagicCore
   update-mime-database %{_datadir}/mime &> /dev/null || :
 
 attr: |
-  %attr(4755, root, root) %{_datadir}/%{name}/BettboxCore
+  %attr(4755, root, root) %{_datadir}/%{name}/MagicCore

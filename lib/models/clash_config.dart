@@ -268,14 +268,16 @@ abstract class SnifferConfig with _$SnifferConfig {
       _$SnifferConfigFromJson(json);
 }
 
+const defaultDnsHijack = <String>['any:53', 'tcp://any:53'];
+
 @freezed
 abstract class Tun with _$Tun {
   const factory Tun({
     @Default(false) bool enable,
     @Default(tunDeviceName) String device,
-    @JsonKey(name: 'auto-route') @Default(false) bool autoRoute,
-    @Default(TunStack.system) TunStack stack,
-    @JsonKey(name: 'dns-hijack') @Default(['any:53']) List<String> dnsHijack,
+    @JsonKey(name: 'auto-route') @Default(true) bool autoRoute,
+    @Default(TunStack.mixed) TunStack stack,
+    @JsonKey(name: 'dns-hijack') @Default(defaultDnsHijack) List<String> dnsHijack,
     @JsonKey(name: 'route-address') @Default([]) List<String> routeAddress,
     @JsonKey(name: 'route-exclude-address')
     @Default([])
@@ -284,7 +286,7 @@ abstract class Tun with _$Tun {
     @JsonKey(name: 'disable-icmp-forwarding')
     @Default(true)
     bool disableIcmpForwarding,
-    @Default(4064) int mtu,
+    @Default(1500) int mtu,
     @JsonKey(name: 'endpoint-independent-nat')
     @Default(false)
     bool endpointIndependentNat,
@@ -345,17 +347,59 @@ extension TunExt on Tun {
   }
 }
 
+Map<String, String> nameserverPolicyFromJson(dynamic json) {
+  if (json is! Map) {
+    return Map<String, String>.from(defaultNameserverPolicy);
+  }
+  return json.map((key, value) {
+    final name = key.toString();
+    if (value is List) {
+      return MapEntry(
+        name,
+        value.map((item) => item.toString()).where((item) => item.isNotEmpty).join(','),
+      );
+    }
+    return MapEntry(name, value?.toString() ?? '');
+  });
+}
+
+const defaultNameserverPolicy = <String, String>{
+  'geosite:cn': '223.5.5.5,119.29.29.29,https://dns.alidns.com/dns-query',
+  'geosite:private': '223.5.5.5,119.29.29.29',
+};
+
+const defaultFakeIpFilter = <String>[
+  '*.lan',
+  '*.local',
+  '*.arpa',
+  'time.*.com',
+  'ntp.*.com',
+  '+.market.xiaomi.com',
+  'localhost.ptlogin2.qq.com',
+  '*.msftncsi.com',
+  'www.msftconnecttest.com',
+];
+
 @freezed
 abstract class FallbackFilter with _$FallbackFilter {
   const factory FallbackFilter({
-    @Default(false) bool geoip,
+    @Default(true) bool geoip,
     @Default('CN') @JsonKey(name: 'geoip-code') String geoipCode,
-    @Default([]) List<String> ipcidr,
-    @Default([]) List<String> domain,
+    @Default(['240.0.0.0/4', '0.0.0.0/32']) List<String> ipcidr,
+    @Default([
+      '+.google.com',
+      '+.facebook.com',
+      '+.youtube.com',
+      '+.twitter.com',
+      '+.github.com',
+    ])
+    List<String> domain,
   }) = _FallbackFilter;
   factory FallbackFilter.fromJson(Map<String, Object?> json) =>
       _$FallbackFilterFromJson(json);
 }
+
+const defaultFallbackFilter = FallbackFilter();
 
 @freezed
 abstract class Dns with _$Dns {
@@ -366,53 +410,52 @@ abstract class Dns with _$Dns {
     @Default(CacheAlgorithm.arc)
     @JsonKey(name: 'cache-algorithm')
     CacheAlgorithm cacheAlgorithm,
-    @Default(true) @JsonKey(name: 'use-hosts') bool useHosts,
-    @Default(true) @JsonKey(name: 'use-system-hosts') bool useSystemHosts,
-    @Default(false) @JsonKey(name: 'respect-rules') bool respectRules,
+    @Default(false) @JsonKey(name: 'use-hosts') bool useHosts,
+    @Default(false) @JsonKey(name: 'use-system-hosts') bool useSystemHosts,
+    @Default(true) @JsonKey(name: 'respect-rules') bool respectRules,
     @Default(false) bool ipv6,
-    @Default(['114.114.114.114'])
+    @Default(['223.5.5.5', '119.29.29.29'])
     @JsonKey(name: 'default-nameserver')
     List<String> defaultNameserver,
     @Default(DnsMode.fakeIp)
     @JsonKey(name: 'enhanced-mode')
     DnsMode enhancedMode,
-    @Default('198.18.0.1/15')
+    @Default('198.18.0.1/16')
     @JsonKey(name: 'fake-ip-range')
     String fakeIpRange,
     @Default('') @JsonKey(name: 'fake-ip-range6') String fakeIpRangeV6,
     @Default(FilterMode.blacklist)
     @JsonKey(name: 'fake-ip-filter-mode')
     FilterMode fakeIpFilterMode,
-    @Default([
-      '*',
-      'geosite:private',
-      'geosite:category-ntp',
-      'geosite:geolocation-cn',
-      'geosite:connectivity-check',
-    ])
+    @Default(defaultFakeIpFilter)
     @JsonKey(name: 'fake-ip-filter')
     List<String> fakeIpFilter,
     @Default(1) @JsonKey(name: 'fake-ip-ttl') int fakeIpTtl,
-    @Default({
-      '+.internal.corp.com': '10.0.0.1',
-      'geosite:cn': '119.29.29.29',
-      'geosite:private': 'system',
-      '*': 'system',
-    })
-    @JsonKey(name: 'nameserver-policy')
+    @Default(defaultNameserverPolicy)
+    @JsonKey(name: 'nameserver-policy', fromJson: nameserverPolicyFromJson)
     Map<String, String> nameserverPolicy,
-    @Default(['1.1.1.1']) List<String> nameserver,
-    @Default([]) List<String> fallback,
-    @Default(['https://doh.pub/dns-query#DIRECT'])
+    @Default(['https://1.1.1.1/dns-query', 'https://8.8.8.8/dns-query'])
+    List<String> nameserver,
+    @Default([
+      'https://1.1.1.1/dns-query',
+      'https://8.8.8.8/dns-query',
+      'tls://1.1.1.1:853',
+    ])
+    List<String> fallback,
+    @Default(['223.5.5.5', '119.29.29.29'])
     @JsonKey(name: 'proxy-server-nameserver')
     List<String> proxyServerNameserver,
-    @Default([])
+    @Default([
+      '223.5.5.5',
+      '119.29.29.29',
+      'https://dns.alidns.com/dns-query',
+    ])
     @JsonKey(name: 'direct-nameserver')
     List<String> directNameserver,
     @Default(false)
     @JsonKey(name: 'direct-nameserver-follow-policy')
     bool directNameserverFollowPolicy,
-    @Default(FallbackFilter())
+    @Default(defaultFallbackFilter)
     @JsonKey(name: 'fallback-filter')
     FallbackFilter fallbackFilter,
     @Default(false)

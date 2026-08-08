@@ -86,6 +86,15 @@ class _ConfigViewState extends State<ConfigView> {
             Consumer(
               builder: (_, ref, _) {
                 return IconButton(
+                  onPressed: () => openDnsYamlEditor(context, ref),
+                  tooltip: appLocalizations.editDnsYaml,
+                  icon: const Icon(Icons.edit_note),
+                );
+              },
+            ),
+            Consumer(
+              builder: (_, ref, _) {
+                return IconButton(
                   onPressed: () async {
                     final res = await globalState.showMessage(
                       title: appLocalizations.reset,

@@ -168,14 +168,14 @@ Map<String, dynamic> _$SnifferConfigToJson(_SnifferConfig instance) =>
 _Tun _$TunFromJson(Map<String, dynamic> json) => _Tun(
   enable: json['enable'] as bool? ?? false,
   device: json['device'] as String? ?? tunDeviceName,
-  autoRoute: json['auto-route'] as bool? ?? false,
+  autoRoute: json['auto-route'] as bool? ?? true,
   stack:
-      $enumDecodeNullable(_$TunStackEnumMap, json['stack']) ?? TunStack.system,
+      $enumDecodeNullable(_$TunStackEnumMap, json['stack']) ?? TunStack.mixed,
   dnsHijack:
       (json['dns-hijack'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList() ??
-      const ['any:53'],
+      defaultDnsHijack,
   routeAddress:
       (json['route-address'] as List<dynamic>?)
           ?.map((e) => e as String)
@@ -188,7 +188,7 @@ _Tun _$TunFromJson(Map<String, dynamic> json) => _Tun(
       const [],
   strictRoute: json['strict-route'] as bool? ?? false,
   disableIcmpForwarding: json['disable-icmp-forwarding'] as bool? ?? true,
-  mtu: (json['mtu'] as num?)?.toInt() ?? 4064,
+  mtu: (json['mtu'] as num?)?.toInt() ?? 1500,
   endpointIndependentNat: json['endpoint-independent-nat'] as bool? ?? false,
 );
 
@@ -215,14 +215,20 @@ const _$TunStackEnumMap = {
 _FallbackFilter _$FallbackFilterFromJson(
   Map<String, dynamic> json,
 ) => _FallbackFilter(
-  geoip: json['geoip'] as bool? ?? false,
+  geoip: json['geoip'] as bool? ?? true,
   geoipCode: json['geoip-code'] as String? ?? 'CN',
   ipcidr:
       (json['ipcidr'] as List<dynamic>?)?.map((e) => e as String).toList() ??
-      const [],
+      const ['240.0.0.0/4', '0.0.0.0/32'],
   domain:
       (json['domain'] as List<dynamic>?)?.map((e) => e as String).toList() ??
-      const [],
+      const [
+        '+.google.com',
+        '+.facebook.com',
+        '+.youtube.com',
+        '+.twitter.com',
+        '+.github.com',
+      ],
 );
 
 Map<String, dynamic> _$FallbackFilterToJson(_FallbackFilter instance) =>
@@ -240,19 +246,19 @@ _Dns _$DnsFromJson(Map<String, dynamic> json) => _Dns(
   cacheAlgorithm:
       $enumDecodeNullable(_$CacheAlgorithmEnumMap, json['cache-algorithm']) ??
       CacheAlgorithm.arc,
-  useHosts: json['use-hosts'] as bool? ?? true,
-  useSystemHosts: json['use-system-hosts'] as bool? ?? true,
-  respectRules: json['respect-rules'] as bool? ?? false,
+  useHosts: json['use-hosts'] as bool? ?? false,
+  useSystemHosts: json['use-system-hosts'] as bool? ?? false,
+  respectRules: json['respect-rules'] as bool? ?? true,
   ipv6: json['ipv6'] as bool? ?? false,
   defaultNameserver:
       (json['default-nameserver'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList() ??
-      const ['114.114.114.114'],
+      const ['223.5.5.5', '119.29.29.29'],
   enhancedMode:
       $enumDecodeNullable(_$DnsModeEnumMap, json['enhanced-mode']) ??
       DnsMode.fakeIp,
-  fakeIpRange: json['fake-ip-range'] as String? ?? '198.18.0.1/15',
+  fakeIpRange: json['fake-ip-range'] as String? ?? '198.18.0.1/16',
   fakeIpRangeV6: json['fake-ip-range6'] as String? ?? '',
   fakeIpFilterMode:
       $enumDecodeNullable(_$FilterModeEnumMap, json['fake-ip-filter-mode']) ??
@@ -261,46 +267,37 @@ _Dns _$DnsFromJson(Map<String, dynamic> json) => _Dns(
       (json['fake-ip-filter'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList() ??
-      const [
-        '*',
-        'geosite:private',
-        'geosite:category-ntp',
-        'geosite:geolocation-cn',
-        'geosite:connectivity-check',
-      ],
+      defaultFakeIpFilter,
   fakeIpTtl: (json['fake-ip-ttl'] as num?)?.toInt() ?? 1,
-  nameserverPolicy:
-      (json['nameserver-policy'] as Map<String, dynamic>?)?.map(
-        (k, e) => MapEntry(k, e as String),
-      ) ??
-      const {
-        '+.internal.corp.com': '10.0.0.1',
-        'geosite:cn': '119.29.29.29',
-        'geosite:private': 'system',
-        '*': 'system',
-      },
+  nameserverPolicy: json['nameserver-policy'] == null
+      ? defaultNameserverPolicy
+      : nameserverPolicyFromJson(json['nameserver-policy']),
   nameserver:
       (json['nameserver'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList() ??
-      const ['1.1.1.1'],
+      const ['https://1.1.1.1/dns-query', 'https://8.8.8.8/dns-query'],
   fallback:
       (json['fallback'] as List<dynamic>?)?.map((e) => e as String).toList() ??
-      const [],
+      const [
+        'https://1.1.1.1/dns-query',
+        'https://8.8.8.8/dns-query',
+        'tls://1.1.1.1:853',
+      ],
   proxyServerNameserver:
       (json['proxy-server-nameserver'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList() ??
-      const ['https://doh.pub/dns-query#DIRECT'],
+      const ['223.5.5.5', '119.29.29.29'],
   directNameserver:
       (json['direct-nameserver'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList() ??
-      const [],
+      const ['223.5.5.5', '119.29.29.29', 'https://dns.alidns.com/dns-query'],
   directNameserverFollowPolicy:
       json['direct-nameserver-follow-policy'] as bool? ?? false,
   fallbackFilter: json['fallback-filter'] == null
-      ? const FallbackFilter()
+      ? defaultFallbackFilter
       : FallbackFilter.fromJson(
           json['fallback-filter'] as Map<String, dynamic>,
         ),

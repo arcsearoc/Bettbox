@@ -1,9 +1,121 @@
 import 'package:bett_box/common/common.dart';
 import 'package:bett_box/enum/enum.dart';
+import 'package:bett_box/models/clash_config.dart';
+import 'package:bett_box/pages/editor.dart';
 import 'package:bett_box/providers/config.dart';
+import 'package:bett_box/state.dart';
 import 'package:bett_box/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+Map<String, dynamic> _dnsToEditableMap(Dns dns) {
+  final json = Map<String, dynamic>.from(dns.toJson());
+  final policy = json['nameserver-policy'];
+  if (policy is Map) {
+    json['nameserver-policy'] = policy.map((key, value) {
+      if (value is String &&
+          RegExp(r'[, ;]+').hasMatch(value) &&
+          value
+                  .split(RegExp(r'[, ;]+'))
+                  .where((part) => part.isNotEmpty)
+                  .length >
+              1) {
+        return MapEntry(
+          key,
+          value
+              .split(RegExp(r'[, ;]+'))
+              .where((part) => part.isNotEmpty)
+              .toList(),
+        );
+      }
+      return MapEntry(key, value);
+    });
+  }
+  return json;
+}
+
+String _dnsToYaml(Dns dns) => encodeYaml({'dns': _dnsToEditableMap(dns)});
+
+Dns _dnsFromYaml(String content) {
+  final root = parseYamlMap(content);
+  final dnsRaw = root['dns'] ?? root;
+  if (dnsRaw is! Map) {
+    throw const FormatException('dns section must be a map');
+  }
+  return Dns.safeDnsFromJson(Map<String, dynamic>.from(dnsRaw));
+}
+
+Future<void> openDnsYamlEditor(BuildContext context, WidgetRef ref) async {
+  final current = ref.read(patchClashConfigProvider).dns;
+  final raw = _dnsToYaml(current);
+  final editorPage = EditorPage(
+    title: appLocalizations.editDnsYaml,
+    content: raw,
+    onSave: (context, _, content) {
+      try {
+        final dns = _dnsFromYaml(content);
+        ref
+            .read(patchClashConfigProvider.notifier)
+            .updateState((state) => state.copyWith(dns: dns));
+        ref.read(overrideDnsProvider.notifier).value = true;
+        if (context.mounted) {
+          Navigator.of(context).pop(content);
+        }
+        globalState.showNotifier(appLocalizations.success);
+      } catch (_) {
+        globalState.showMessage(
+          title: appLocalizations.tip,
+          message: TextSpan(text: appLocalizations.dnsYamlInvalid),
+          cancelable: false,
+        );
+      }
+    },
+    onPop: (context, _, content) async {
+      if (content == raw) {
+        return true;
+      }
+      final res = await globalState.showMessage(
+        title: appLocalizations.editDnsYaml,
+        message: TextSpan(text: appLocalizations.hasCacheChange),
+      );
+      if (res == true && context.mounted) {
+        try {
+          final dns = _dnsFromYaml(content);
+          ref
+              .read(patchClashConfigProvider.notifier)
+              .updateState((state) => state.copyWith(dns: dns));
+          ref.read(overrideDnsProvider.notifier).value = true;
+          globalState.showNotifier(appLocalizations.success);
+          return true;
+        } catch (_) {
+          globalState.showMessage(
+            title: appLocalizations.tip,
+            message: TextSpan(text: appLocalizations.dnsYamlInvalid),
+            cancelable: false,
+          );
+          return false;
+        }
+      }
+      return true;
+    },
+  );
+  await BaseNavigator.push(context, editorPage);
+}
+
+Future<void> applyDnsAntiLeakPreset(WidgetRef ref) async {
+  final res = await globalState.showMessage(
+    title: appLocalizations.dnsAntiLeakPreset,
+    message: TextSpan(text: appLocalizations.dnsAntiLeakPresetConfirm),
+  );
+  if (res != true) {
+    return;
+  }
+  ref
+      .read(patchClashConfigProvider.notifier)
+      .updateState((state) => state.copyWith(dns: defaultDns));
+  ref.read(overrideDnsProvider.notifier).value = true;
+  globalState.showNotifier(appLocalizations.success);
+}
 
 class OverrideItem extends ConsumerWidget {
   const OverrideItem({super.key});
@@ -20,6 +132,34 @@ class OverrideItem extends ConsumerWidget {
           ref.read(overrideDnsProvider.notifier).value = value;
         },
       ),
+    );
+  }
+}
+
+class EditDnsYamlItem extends ConsumerWidget {
+  const EditDnsYamlItem({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListItem(
+      title: Text(appLocalizations.editDnsYaml),
+      subtitle: Text(appLocalizations.editDnsYamlDesc),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => openDnsYamlEditor(context, ref),
+    );
+  }
+}
+
+class DnsAntiLeakPresetItem extends ConsumerWidget {
+  const DnsAntiLeakPresetItem({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListItem(
+      title: Text(appLocalizations.dnsAntiLeakPreset),
+      subtitle: Text(appLocalizations.dnsAntiLeakPresetDesc),
+      trailing: const Icon(Icons.auto_fix_high_outlined),
+      onTap: () => applyDnsAntiLeakPreset(ref),
     );
   }
 }
@@ -872,6 +1012,8 @@ class DomainItem extends StatelessWidget {
 
 final dnsItems = <Widget>[
   const OverrideItem(),
+  const EditDnsYamlItem(),
+  const DnsAntiLeakPresetItem(),
   ...generateSection(
     title: appLocalizations.options,
     items: const [
