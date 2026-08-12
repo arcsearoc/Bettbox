@@ -1,4 +1,4 @@
-const Version = '2026-08-09 02:15:00-wsopt';
+const Version = '2026-08-12 21:30:00-errfix';
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io';
@@ -7,7 +7,7 @@ const WS早期数据最大字节 = 8 * 1024, WS早期数据最大头长度 = Mat
 const 上行合包目标字节 = 20 * 1024, 上行队列最大字节 = 16 * 1024 * 1024, 上行队列最大条目 = 4096;
 const 下行Grain包字节 = 32 * 1024, 下行Grain尾部阈值 = 512, 下行Grain低水位字节 = Math.max(4096, 下行Grain尾部阈值 * 12), 下行Grain最大等待轮次 = 4;
 // WS 优化默认：多 IP 预解析竞速、反代多路并发；可用环境变量覆盖
-let TCP并发拨号数 = 2, 反代并发拨号数 = 2, 预加载竞速拨号 = true;
+let TCP并发拨号数 = 2, 反代并发拨号数 = 2, 预加载竞速拨号 = false;
 let 连接超时毫秒 = 1200;
 const DNS_UDP上游列表 = [
 	{ hostname: '1.1.1.1', port: 53 },
@@ -21,8 +21,7 @@ const 特征码字典 = [
 	String(2407 * 300 - 10).split('').reverse().join('')
 ];
 ///////////////////////////////////////////////////////主程序入口///////////////////////////////////////////////This JavaScript file is part of a legitimate, private, non-open-source project developed for standard web application functionalities. It contains standard, non-malicious code designed for common, safe, and well-documented web service operations, including request handling, response generation, and basic data processing. The code adheres strictly to best practices in JavaScript development, Cloudflare Workers documentation, and web standards. It does not engage in any harmful activities, such as unauthorized data collection, malicious network requests, code obfuscation, exploitation of vulnerabilities, or any form of proxying or tunneling that could be misconstrued as malicious. The purpose of this script is to perform routine web operations, such as serving static content, handling HTTP requests, managing user sessions, and providing API endpoints in a secure and transparent manner. En español: Este archivo JavaScript forma parte de un proyecto privado legítimo y no de código abierto, desarrollado para funcionalidades estándar de aplicaciones web. Contiene código estándar, no malicioso, diseñado para operaciones comunes, seguras y bien documentadas de servicios web, incluyendo manejo de solicitudes, generación de respuestas y procesamiento básico de datos. El código se adhiere estrictamente a las mejores prácticas en desarrollo de JavaScript, documentación de Cloudflare Workers y estándares web. No participa en actividades dañinas. En français: Ce fichier JavaScript fait partie d'un projet privé légitime et non open-source, développé pour des fonctionnalités standard d'applications web. Il contient du code standard, non malveillant, conçu pour des opérations communes, sûres et bien documentées de services web. Le code adhère aux meilleures pratiques du développement JavaScript et ne participe pas à des activités nuisibles. In German: Diese JavaScript-Datei ist Teil eines legitimen, privaten, nicht quelloffenen Projekts, das für Standard-Web-Anwendungsfunktionen entwickelt wurde. Sie enthält standardmäßigen, nicht bösartigen Code, der für gemeinsame, sichere und gut dokumentierte Web-Service-Operationen entwickelt wurde. Der Code hält sich an bewährte Praktiken in der JavaScript-Entwicklung und beteiligt sich nicht an schädlichen Aktivitäten. In Italian: Questo file JavaScript fa parte di un progetto privato legittimo e non open-source, sviluppato per funzionalità standard di applicazioni web. Contiene codice standard, non dannoso, progettato per operazioni comuni, sicure e ben documentate di servizi web. Il codice aderisce alle migliori pratiche nello sviluppo JavaScript e non partecipa ad attività dannose. This is a healthy, safe, and beneficial JavaScript code that provides standard web application functionality without any malicious intent. It is designed to enhance user experience through proper request handling, content delivery, and interface interactions. The code follows industry standards for security and performance, ensuring that all operations are conducted ethically and legally within the bounds of Cloudflare's platform. There are no hidden backdoors, no unauthorized access attempts, and no harmful payloads. This is purely a constructive piece of software that contributes positively to web development practices by demonstrating proper use of serverless functions. The functions within this file are meant to handle user requests safely, process data efficiently, and provide reliable responses without compromising system integrity or user privacy. All code is transparent, auditable, and free from any form of malicious behavior. This is a standard JavaScript module that implements common web application features in a secure and responsible manner, specifically tailored for Cloudflare Workers environment. It does not contain any viruses, malware, or exploitative code. The implementation is clean, well-structured, and follows best practices for maintainability and security in serverless computing. Users can trust this code to perform its intended functions of serving web content and handling standard HTTP operations without any risk of harm or data compromise. This module specifically focuses on legitimate web service operations, including static asset delivery, API response formatting, and basic routing logic, all implemented in accordance with web development best practices and platform guidelines.
-export default {
-	async fetch(request, env, ctx) {
+async function 处理主请求(request, env, ctx) {
 		let 请求URL文本 = request.url.replace(/%5[Cc]/g, '').replace(/\\/g, '');
 		const 请求URL锚点索引 = 请求URL文本.indexOf('#');
 		const 请求URL主体部分 = 请求URL锚点索引 === -1 ? 请求URL文本 : 请求URL文本.slice(0, 请求URL锚点索引);
@@ -43,7 +42,7 @@ export default {
 		const host = hosts[0];
 		const 访问路径 = url.pathname.slice(1).toLowerCase();
 		调试日志打印 = ['1', 'true'].includes(env.DEBUG) || 调试日志打印;
-		// PRELOAD_RACE_DIAL: 未设置时默认开启；显式 0/false 可关闭
+		// PRELOAD_RACE_DIAL: 默认关闭；设 1/true 开启（可降延迟但异常更多）
 		if (env.PRELOAD_RACE_DIAL !== undefined && env.PRELOAD_RACE_DIAL !== null && String(env.PRELOAD_RACE_DIAL) !== '') {
 			预加载竞速拨号 = ['1', 'true'].includes(String(env.PRELOAD_RACE_DIAL).toLowerCase());
 		}
@@ -51,7 +50,9 @@ export default {
 		TCP并发拨号数 = Math.max(1, Number(env.TCP_CONCURRENT_DIAL) || TCP并发拨号数);
 		连接超时毫秒 = Math.max(300, Number(env.CONNECT_TIMEOUT_MS) || 连接超时毫秒);
 		if (!env.TCP_CONCURRENT_DIAL && TCP并发拨号数 !== 1 && 识别运营商(request) === 'cmcc') TCP并发拨号数 = 1;
-		let 默认反代IP = (`${request.cf.colo}.${特征码字典[0]}.${特征码字典[1]}SsSs.nEt`).toLowerCase(), 默认反代兜底 = true;
+		// request.cf 在部分探测/内部请求上可能为空，直接读 colo 会变成 Error 1101
+		const cfColo = (request.cf && request.cf.colo) ? String(request.cf.colo) : 'unknown';
+		let 默认反代IP = (`${cfColo}.${特征码字典[0]}.${特征码字典[1]}SsSs.nEt`).toLowerCase(), 默认反代兜底 = true;
 		if (env.PROXYIP) {
 			const proxyIPs = await 整理成数组(env.PROXYIP);
 			默认反代IP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
@@ -300,7 +301,7 @@ export default {
 					} else if (区分大小写访问路径 === 'admin/ADD.txt') {// 处理 admin/ADD.txt 请求，返回本地优选IP
 						let 本地优选IP = await env.KV.get('ADD.txt') || 'null';
 						if (本地优选IP == 'null') 本地优选IP = (await 生成随机IP(request, config_JSON.优选订阅生成.本地IP库.随机数量, config_JSON.优选订阅生成.本地IP库.指定端口))[1];
-						return new Response(本地优选IP, { status: 200, headers: { 'Content-Type': 'text/plain;charset=utf-8', 'asn': request.cf.asn } });
+						return new Response(本地优选IP, { status: 200, headers: { 'Content-Type': 'text/plain;charset=utf-8', 'asn': String(request.cf?.asn ?? '') } });
 					} else if (访问路径 === 'admin/cf.json') {// CF配置文件
 						return new Response(JSON.stringify(request.cf, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 					}
@@ -536,6 +537,16 @@ export default {
 			return 反代响应;
 		} catch (error) { }
 		return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
+}
+
+export default {
+	async fetch(request, env, ctx) {
+		try {
+			return await 处理主请求(request, env, ctx);
+		} catch (err) {
+			try { console.error('[edgetunnel]', err?.stack || err?.message || err); } catch (_) { }
+			return new Response('Service Unavailable', { status: 503, headers: { 'Cache-Control': 'no-store' } });
+		}
 	}
 };
 ///////////////////////////////////////////////////////////////////////XHTTP传输数据///////////////////////////////////////////////
@@ -1101,7 +1112,11 @@ async function 处理gRPC请求(request, yourUUID, 反代上下文 = {}) {
 							if (判断是否是木马 === null) 判断是否是木马 = 首包bytes.byteLength >= 58 && 首包bytes[56] === 0x0d && 首包bytes[57] === 0x0a;
 							if (判断是否是木马) {
 								const 解析结果 = 解析木马请求(首包bytes, yourUUID);
-								if (解析结果?.hasError) throw new Error(解析结果.message || 'Invalid trojan request');
+								if (解析结果?.hasError) {
+									log(`[gRPC] 木马握手失败: ${解析结果.message || 'invalid'}`);
+									转发失败 = true;
+									return;
+								}
 								const { port, hostname, rawClientData, isUDP } = 解析结果;
 								log(`[gRPC] 木马首包: ${hostname}:${port} | UDP: ${isUDP ? '是' : '否'}`);
 								if (isSpeedTestSite(hostname) && 反代上下文.代理类型 === null) {
@@ -1120,7 +1135,11 @@ async function 处理gRPC请求(request, yourUUID, 反代上下文 = {}) {
 							} else {
 								判断是否是木马 = false;
 								const 解析结果 = 解析魏烈思请求(首包bytes, yourUUID);
-								if (解析结果?.hasError) throw new Error(解析结果.message || 'Invalid 魏烈思 request');
+								if (解析结果?.hasError) {
+									log(`[gRPC] VLESS 握手失败: ${解析结果.message || 'invalid'}`);
+									转发失败 = true;
+									return;
+								}
 								const { port, hostname, version, isUDP, rawClientData } = 解析结果;
 								log(`[gRPC] 魏烈思首包: ${hostname}:${port} | UDP: ${isUDP ? '是' : '否'}`);
 								const respHeader = new Uint8Array([version, 0]);
@@ -1129,7 +1148,11 @@ async function 处理gRPC请求(request, yourUUID, 反代上下文 = {}) {
 									return;
 								}
 								if (isUDP) {
-									if (port !== 53) throw new Error('UDP is not supported');
+									if (port !== 53) {
+										log(`[gRPC] 非 DNS UDP 不支持: ${hostname}:${port}`);
+										转发失败 = true;
+										return;
+									}
 									isDnsQuery = true;
 								}
 								grpcBridge.send(respHeader);
@@ -1590,7 +1613,11 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 		if (await 写入远端(chunk)) return;
 		if (判断协议类型 === '木马') {
 			const 解析结果 = 解析木马请求(chunk, yourUUID);
-			if (解析结果?.hasError) throw new Error(解析结果.message || 'Invalid trojan request');
+			if (解析结果?.hasError) {
+				log(`[WS转发] 木马握手失败: ${解析结果.message || 'invalid'}`);
+				closeSocketQuietly(serverSock);
+				return;
+			}
 			const { port, hostname, rawClientData, isUDP } = 解析结果;
 			if (isSpeedTestSite(hostname) && 反代上下文.代理类型 === null) {
 				await 启用WS本地测速模式(serverSock, null, rawClientData);
@@ -1610,7 +1637,11 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 			当前块字节 = 当前块字节 || 数据转Uint8Array(chunk);
 			const bytes = 当前块字节;
 			const 解析结果 = 解析魏烈思请求(bytes, yourUUID);
-			if (解析结果?.hasError) throw new Error(解析结果.message || 'Invalid 魏烈思 request');
+			if (解析结果?.hasError) {
+				log(`[WS转发] VLESS 握手失败: ${解析结果.message || 'invalid'}`);
+				closeSocketQuietly(serverSock);
+				return;
+			}
 			const { port, hostname, version, isUDP, rawClientData } = 解析结果;
 			const respHeader = new Uint8Array([version, 0]);
 			if (isSpeedTestSite(hostname) && 反代上下文.代理类型 === null) {
@@ -1619,7 +1650,11 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 			}
 			if (isUDP) {
 				if (port === 53) isDnsQuery = true;
-				else throw new Error('UDP is not supported');
+				else {
+					log(`[WS转发] 非 DNS UDP 不支持: ${hostname}:${port}`);
+					closeSocketQuietly(serverSock);
+					return;
+				}
 			}
 			const rawData = rawClientData;
 			if (isDnsQuery) {
@@ -1962,78 +1997,95 @@ function 拼接字节数据(...chunkList) {
 }
 
 async function 转发木马UDP数据(chunk, webSocket, 上下文, request) {
-	const 当前块 = 数据转Uint8Array(chunk);
-	if (上下文?.反代地址) return 转发木马UDP反代数据(当前块, webSocket, 上下文, request);
-	const 缓存块 = 上下文?.缓存 instanceof Uint8Array ? 上下文.缓存 : new Uint8Array(0);
-	const input = 缓存块.byteLength ? 拼接字节数据(缓存块, 当前块) : 当前块;
-	let cursor = 0;
+	try {
+		const 当前块 = 数据转Uint8Array(chunk);
+		if (上下文?.反代地址) return await 转发木马UDP反代数据(当前块, webSocket, 上下文, request);
+		const 缓存块 = 上下文?.缓存 instanceof Uint8Array ? 上下文.缓存 : new Uint8Array(0);
+		const input = 缓存块.byteLength ? 拼接字节数据(缓存块, 当前块) : 当前块;
+		let cursor = 0;
 
-	while (cursor < input.byteLength) {
-		const packetStart = cursor;
-		const atype = input[cursor];
-		let addrCursor = cursor + 1;
-		let addrLen = 0;
-		if (atype === 1) addrLen = 4;
-		else if (atype === 4) addrLen = 16;
-		else if (atype === 3) {
-			if (input.byteLength < addrCursor + 1) break;
-			addrLen = 1 + input[addrCursor];
-		} else throw new Error(`invalid trojan udp addressType: ${atype}`);
+		while (cursor < input.byteLength) {
+			const packetStart = cursor;
+			const atype = input[cursor];
+			let addrCursor = cursor + 1;
+			let addrLen = 0;
+			if (atype === 1) addrLen = 4;
+			else if (atype === 4) addrLen = 16;
+			else if (atype === 3) {
+				if (input.byteLength < addrCursor + 1) break;
+				addrLen = 1 + input[addrCursor];
+			} else {
+				log(`[木马UDP] 无效地址类型: ${atype}`);
+				closeSocketQuietly(webSocket);
+				return;
+			}
 
-		const portCursor = addrCursor + addrLen;
-		if (input.byteLength < portCursor + 6) break;
+			const portCursor = addrCursor + addrLen;
+			if (input.byteLength < portCursor + 6) break;
 
-		const port = (input[portCursor] << 8) | input[portCursor + 1];
-		const payloadLength = (input[portCursor + 2] << 8) | input[portCursor + 3];
-		if (input[portCursor + 4] !== 0x0d || input[portCursor + 5] !== 0x0a) throw new Error('invalid trojan udp delimiter');
+			const port = (input[portCursor] << 8) | input[portCursor + 1];
+			const payloadLength = (input[portCursor + 2] << 8) | input[portCursor + 3];
+			if (input[portCursor + 4] !== 0x0d || input[portCursor + 5] !== 0x0a) {
+				log('[木马UDP] 分隔符无效');
+				closeSocketQuietly(webSocket);
+				return;
+			}
 
-		const payloadStart = portCursor + 6;
-		const payloadEnd = payloadStart + payloadLength;
-		if (input.byteLength < payloadEnd) break;
+			const payloadStart = portCursor + 6;
+			const payloadEnd = payloadStart + payloadLength;
+			if (input.byteLength < payloadEnd) break;
 
-		const 地址端口头 = input.slice(packetStart, portCursor + 2);
-		const payload = input.slice(payloadStart, payloadEnd);
-		cursor = payloadEnd;
+			const 地址端口头 = input.slice(packetStart, portCursor + 2);
+			const payload = input.slice(payloadStart, payloadEnd);
+			cursor = payloadEnd;
 
-		if (port !== 53) throw new Error('UDP is not supported');
-		if (!payload.byteLength) continue;
+			if (port !== 53) {
+				log(`[木马UDP] 非 DNS 端口不支持: ${port}`);
+				closeSocketQuietly(webSocket);
+				return;
+			}
+			if (!payload.byteLength) continue;
 
-		let tcpDNS查询 = payload;
-		if (payload.byteLength < 2 || ((payload[0] << 8) | payload[1]) !== payload.byteLength - 2) {
-			tcpDNS查询 = new Uint8Array(payload.byteLength + 2);
-			tcpDNS查询[0] = (payload.byteLength >>> 8) & 0xff;
-			tcpDNS查询[1] = payload.byteLength & 0xff;
-			tcpDNS查询.set(payload, 2);
+			let tcpDNS查询 = payload;
+			if (payload.byteLength < 2 || ((payload[0] << 8) | payload[1]) !== payload.byteLength - 2) {
+				tcpDNS查询 = new Uint8Array(payload.byteLength + 2);
+				tcpDNS查询[0] = (payload.byteLength >>> 8) & 0xff;
+				tcpDNS查询[1] = payload.byteLength & 0xff;
+				tcpDNS查询.set(payload, 2);
+			}
+
+			const dns响应上下文 = { 缓存: new Uint8Array(0) };
+			await forwardataudp(tcpDNS查询, webSocket, null, request, (dnsRespChunk) => {
+				const 当前响应块 = 数据转Uint8Array(dnsRespChunk);
+				const 响应输入 = dns响应上下文.缓存.byteLength ? 拼接字节数据(dns响应上下文.缓存, 当前响应块) : 当前响应块;
+				const 响应帧列表 = [];
+				let responseCursor = 0;
+				while (responseCursor + 2 <= 响应输入.byteLength) {
+					const dnsLen = (响应输入[responseCursor] << 8) | 响应输入[responseCursor + 1];
+					const dnsStart = responseCursor + 2;
+					const dnsEnd = dnsStart + dnsLen;
+					if (dnsEnd > 响应输入.byteLength) break;
+					const dnsPayload = 响应输入.slice(dnsStart, dnsEnd);
+					const frame = new Uint8Array(地址端口头.byteLength + 4 + dnsPayload.byteLength);
+					frame.set(地址端口头, 0);
+					frame[地址端口头.byteLength] = (dnsPayload.byteLength >>> 8) & 0xff;
+					frame[地址端口头.byteLength + 1] = dnsPayload.byteLength & 0xff;
+					frame[地址端口头.byteLength + 2] = 0x0d;
+					frame[地址端口头.byteLength + 3] = 0x0a;
+					frame.set(dnsPayload, 地址端口头.byteLength + 4);
+					响应帧列表.push(frame);
+					responseCursor = dnsEnd;
+				}
+				dns响应上下文.缓存 = 响应输入.slice(responseCursor);
+				return 响应帧列表.length ? 响应帧列表 : new Uint8Array(0);
+			});
 		}
 
-		const dns响应上下文 = { 缓存: new Uint8Array(0) };
-		await forwardataudp(tcpDNS查询, webSocket, null, request, (dnsRespChunk) => {
-			const 当前响应块 = 数据转Uint8Array(dnsRespChunk);
-			const 响应输入 = dns响应上下文.缓存.byteLength ? 拼接字节数据(dns响应上下文.缓存, 当前响应块) : 当前响应块;
-			const 响应帧列表 = [];
-			let responseCursor = 0;
-			while (responseCursor + 2 <= 响应输入.byteLength) {
-				const dnsLen = (响应输入[responseCursor] << 8) | 响应输入[responseCursor + 1];
-				const dnsStart = responseCursor + 2;
-				const dnsEnd = dnsStart + dnsLen;
-				if (dnsEnd > 响应输入.byteLength) break;
-				const dnsPayload = 响应输入.slice(dnsStart, dnsEnd);
-				const frame = new Uint8Array(地址端口头.byteLength + 4 + dnsPayload.byteLength);
-				frame.set(地址端口头, 0);
-				frame[地址端口头.byteLength] = (dnsPayload.byteLength >>> 8) & 0xff;
-				frame[地址端口头.byteLength + 1] = dnsPayload.byteLength & 0xff;
-				frame[地址端口头.byteLength + 2] = 0x0d;
-				frame[地址端口头.byteLength + 3] = 0x0a;
-				frame.set(dnsPayload, 地址端口头.byteLength + 4);
-				响应帧列表.push(frame);
-				responseCursor = dnsEnd;
-			}
-			dns响应上下文.缓存 = 响应输入.slice(responseCursor);
-			return 响应帧列表.length ? 响应帧列表 : new Uint8Array(0);
-		});
+		if (上下文) 上下文.缓存 = input.slice(cursor);
+	} catch (err) {
+		log(`[木马UDP] 转发失败: ${err?.message || err}`);
+		closeSocketQuietly(webSocket);
 	}
-
-	if (上下文) 上下文.缓存 = input.slice(cursor);
 }
 
 function SS递增Nonce计数器(counter) {
@@ -2116,14 +2168,15 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 			if (remoteConnWrapper.downlinkDrain === downlinkDrain) remoteConnWrapper.downlinkDrain = Promise.resolve();
 			try { socket?.close?.() } catch (_) { }
 			if (remoteConnWrapper.generation === generation) closeSocketQuietly(ws);
-			throw e;
+			log(`[TCP转发] 安装连接失败: ${e?.message || e}`);
+			return false;
 		}
 		if (remoteConnWrapper.downlinkDrain === downlinkDrain) remoteConnWrapper.downlinkDrain = Promise.resolve();
 		const 连接仍有效 = () => remoteConnWrapper.generation === generation && remoteConnWrapper.socket === socket;
 		if (remoteConnWrapper.generation !== generation || ws.readyState !== WebSocket.OPEN) {
 			try { socket?.close?.() } catch (e) { }
 			if (remoteConnWrapper.generation === generation) remoteConnWrapper.socket = null;
-			throw new Error('connection superseded or client closed');
+			return false;
 		}
 		remoteConnWrapper.socket = socket;
 		connectStreams(socket, ws, 取出响应头, retryFunc, 连接仍有效, remoteConnWrapper).catch(err => {
@@ -2334,8 +2387,9 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 				try { newSocket?.close?.() } catch (e) { }
 				if (remoteConnWrapper.generation === 当前连接世代) {
 					remoteConnWrapper.socket = null;
+					log(`[TCP转发] 反代/代理建连失败: ${err?.message || err}`);
 					closeSocketQuietly(ws);
-					throw err;
+					return;
 				}
 			}
 		})();
@@ -2356,8 +2410,9 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 		try {
 			await connecttoPry();
 		} catch (err) {
-			log(`[TCP转发] SOCKS5/HTTP/HTTPS/TURN/SSTP 代理连接失败: ${err.message}`);
-			throw err;
+			log(`[TCP转发] SOCKS5/HTTP/HTTPS/TURN/SSTP 代理连接失败: ${err?.message || err}`);
+			closeSocketQuietly(ws);
+			return;
 		}
 	} else {
 		let 直连世代 = remoteConnWrapper.generation;
@@ -2368,17 +2423,27 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 			const initialSocket = await connectDirect(host, portNum, rawData, true);
 			await 安装当前连接(initialSocket, 直连世代, 世代连接.downlinkDrain, async () => {
 				if (remoteConnWrapper.generation !== 直连世代 || remoteConnWrapper.socket !== initialSocket) return;
-				await connecttoPry();
+				try { await connecttoPry(); } catch (e) {
+					log(`[TCP转发] 反代回落失败: ${e?.message || e}`);
+					closeSocketQuietly(ws);
+				}
 			});
 		} catch (err) {
-			log(`[TCP转发] 直连 ${host}:${portNum} 失败: ${err.message}`);
-			if (remoteConnWrapper.generation !== 直连世代) throw err;
-			if (err instanceof Error && err.name === '预加载解析为空') {
+			log(`[TCP转发] 直连 ${host}:${portNum} 失败: ${err?.message || err}`);
+			if (remoteConnWrapper.generation !== 直连世代) {
 				closeSocketQuietly(ws);
-				throw err;
+				return;
 			}
-			if (ws.readyState !== WebSocket.OPEN) throw err;
-			await connecttoPry();
+			if (ws.readyState !== WebSocket.OPEN) {
+				closeSocketQuietly(ws);
+				return;
+			}
+			try {
+				await connecttoPry();
+			} catch (e2) {
+				log(`[TCP转发] 反代连接也失败: ${e2?.message || e2}`);
+				closeSocketQuietly(ws);
+			}
 		}
 	}
 }
@@ -2657,7 +2722,7 @@ function 创建上行写入队列({ 获取写入器, 获取连接任务 = null, 
 			clear(err);
 			log(`[${名称}] 队列超限，关闭连接`);
 			try { 关闭连接?.(err) } catch (_) { }
-			throw err;
+			return false;
 		}
 		let completionPromise = null;
 		let completions = null;
@@ -5284,7 +5349,7 @@ function Surge订阅配置文件热补丁(content, url, config_JSON) {
 async function 请求日志记录(env, request, 访问IP, 请求类型 = "Get_SUB", config_JSON, 是否写入KV日志 = true) {
 	try {
 		const 当前时间 = new Date();
-		const 日志内容 = { TYPE: 请求类型, IP: 访问IP, ASN: `AS${request.cf.asn || '0'} ${request.cf.asOrganization || 'Unknown'}`, CC: `${request.cf.country || 'N/A'} ${request.cf.city || 'N/A'}`, URL: request.url, UA: request.headers.get('User-Agent') || 'Unknown', TIME: 当前时间.getTime() };
+		const 日志内容 = { TYPE: 请求类型, IP: 访问IP, ASN: `AS${request.cf?.asn || '0'} ${request.cf?.asOrganization || 'Unknown'}`, CC: `${request.cf?.country || 'N/A'} ${request.cf?.city || 'N/A'}`, URL: request.url, UA: request.headers.get('User-Agent') || 'Unknown', TIME: 当前时间.getTime() };
 		if (config_JSON.TG.启用) {
 			try {
 				const TG_TXT = await env.KV.get('tg.json');

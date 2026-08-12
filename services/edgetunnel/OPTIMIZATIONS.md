@@ -10,12 +10,17 @@
 
 | 项 | 作用 |
 |----|------|
-| 预加载竞速拨号默认开 | 域名多 IP 竞速建连 |
+| 预加载竞速拨号**默认关** | 减少竞速失败带来的未捕获异常；需要时设 `PRELOAD_RACE_DIAL=1` |
 | 反代并发默认 2 | 路径内反代更快试通 |
 | 建连超时 1200ms 可配 | 直连失败更快回落 |
 | DNS UDP 三路竞速 | 隧道内 DNS 更稳 |
 | 旧配置缺省补齐 | 未设置时默认开 **0-RTT**、**UDP/XUDP**、指纹 chrome、传输 ws |
 | Clash 热补丁增强 | 给 WS 节点补 `client-fingerprint` / `udp`/`xudp` / `max-early-data`（不覆盖已有值） |
+| **错误率收敛** | `fetch` 顶层 try/catch；TCP/WS/gRPC 建连或握手失败改为关连接、不 `throw`（避免 Metrics「错误」≈ Uncaught Exception） |
+
+### 关于 Cloudflare「错误率」
+
+仪表盘 **Errors** 主要统计 **未捕获异常 / 超限**，不是 HTTP 4xx/5xx。建连失败若 `throw`，会抬高错误率，但客户端侧只是断线。收敛后失败应表现为静默关 WS，错误率应明显下降；业务成功率仍取决于优选线路质量。
 
 ## Magic 客户端（Bettbox `lib/state.dart`）改动
 
