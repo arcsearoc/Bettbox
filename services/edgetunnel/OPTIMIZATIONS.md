@@ -11,22 +11,19 @@
 | 项 | 作用 |
 |----|------|
 | 同主机只拨一路 | 无预加载多 IP 时不再对同一 hostname 空并发 |
-| 直连/反代对冲 | 直连约 280ms 未成则并行启动反代（`CONNECT_HEDGE_MS`） |
-| 直连超时更快 | 有反代时可对冲时直连超时 ≤650ms，总默认 900ms |
-| 反代并发默认 3 | 路径内反代更快试通 |
 | 反代解析缓存 45s | 减少重复 DoH |
-| VLESS 响应头提前回 | 建连成功即回协议头，不等远端首字节 |
-| 下行首包立即刷出 | 降低浏览 TTFB；合包等待轮次降为 1 |
-| 隧道 DNS：DoH+TCP 竞速 | CF 上 DoH 通常更快；TCP 上游超时 450ms |
-| 预加载竞速拨号**默认关** | 需要时设 `PRELOAD_RACE_DIAL=1`（多 IP 域名更有用） |
+| 预加载竞速拨号**默认关** | 需要时设 `PRELOAD_RACE_DIAL=1` |
+| 反代并发默认 2 | 路径内反代更快试通 |
+| 建连超时 1200ms 可配 | 直连失败更快回落 |
+| DNS UDP 三路竞速 | 隧道内 DNS 更稳 |
 | 旧配置缺省补齐 | 未设置时默认开 **0-RTT**、**UDP/XUDP**、指纹 chrome、传输 ws |
 | Clash 热补丁增强 | 给 WS 节点补 `client-fingerprint` / `udp`/`xudp` / `max-early-data` |
 | **错误率收敛** | 顶层 try/catch；建连/握手失败关连接不 `throw` |
 | **管理后台在线优选** | 代理 edt-pages 时去掉上游写死的 `disabled` |
 
-### 关于 Cloudflare「错误率」
+### 已回退（会导致全量 Timeout）
 
-仪表盘 **Errors** 主要统计 **未捕获异常 / 超限**，不是 HTTP 4xx/5xx。收敛后失败应表现为静默关 WS；业务成功率仍取决于优选线路质量。
+曾尝试的 **直连/反代对冲竞速**、**提前回 VLESS 头**、**DoH 改写隧道 DNS** 存在竞态/兼容问题，已回退。建连仍为：**先直连，失败再反代**。
 
 ## Magic 客户端（Bettbox `lib/state.dart`）改动
 
@@ -45,24 +42,17 @@
 
 ## 可选环境变量（均非必须）
 
-| 变量 | 默认 | 说明 |
-|------|------|------|
-| `PRELOAD_RACE_DIAL` | 关 | `1`/`true` 开启域名多 IP 竞速 |
-| `TCP_CONCURRENT_DIAL` | `2` | 预加载时最多竞速 IP 数 |
-| `PROXY_CONCURRENT_DIAL` | `3` | 反代并发拨号数 |
-| `CONNECT_TIMEOUT_MS` | `900` | TCP 建连超时 |
-| `CONNECT_HEDGE_MS` | `280` | 直连未成时启动反代对冲的延迟；`0` 关闭对冲 |
-| `DEBUG` | 关 | 详细日志 |
+`PRELOAD_RACE_DIAL` / `TCP_CONCURRENT_DIAL` / `PROXY_CONCURRENT_DIAL` / `CONNECT_TIMEOUT_MS` / `DEBUG`
 
 **不需要 `PROXYIP`。**
 
 ## 部署顺序
 
-1. 部署本仓库 `_worker.js`
+1. 部署本仓库 `_worker.js`（版本串含 `wsfix`）
 2. 确认面板 0-RTT + WS
 3. 重新生成优选订阅
-4. 使用已改 `patchRawConfig` 的 Magic 客户端刷新配置
+4. Magic 刷新配置后测延迟
 
 ## 边界
 
-优选入口 IP 质量仍是测速上限主因；Worker 侧优化主要改善 **建连失败回落、DNS、首包/TTFB、反代解析重复开销**。
+优选入口 IP 质量仍是测速上限主因。
