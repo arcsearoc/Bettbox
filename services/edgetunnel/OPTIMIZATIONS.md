@@ -17,6 +17,7 @@
 | 旧配置缺省补齐 | 未设置时默认开 **0-RTT**、**UDP/XUDP**、指纹 chrome、传输 ws |
 | Clash 热补丁增强 | 给 WS 节点补 `client-fingerprint` / `udp`/`xudp` / `max-early-data`（不覆盖已有值） |
 | **错误率收敛** | `fetch` 顶层 try/catch；TCP/WS/gRPC 建连或握手失败改为关连接、不 `throw`（避免 Metrics「错误」≈ Uncaught Exception） |
+| **管理后台在线优选** | 代理 `edt-pages` 管理页时去掉上游写死的 `disabled`（上游 2026-08-11 起误禁用） |
 
 ### 关于 Cloudflare「错误率」
 

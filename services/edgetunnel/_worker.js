@@ -1,4 +1,4 @@
-const Version = '2026-08-12 21:30:00-errfix';
+const Version = '2026-08-12 21:40:00-errfix';
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io';
@@ -307,7 +307,8 @@ async function 处理主请求(request, env, ctx) {
 					}
 
 					ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Admin_Login', config_JSON));
-					return fetch(Pages静态页面 + '/admin' + url.search);
+					// edt-pages 自 2026-08-11 起把「在线优选」按钮写死为 disabled 且无重新启用逻辑，这里代理时去掉禁用。
+					return 代理并修复管理后台页面(Pages静态页面 + '/admin' + url.search);
 				} else if (访问路径 === 'logout' || uuidRegex.test(访问路径)) {//清除cookie并跳转到登录页面
 					const 响应 = new Response('重定向中...', { status: 302, headers: { 'Location': '/login' } });
 					响应.headers.set('Set-Cookie', 'auth=; Path=/; Max-Age=0; HttpOnly');
@@ -6530,6 +6531,27 @@ async function 解析地址端口(proxyIP, 目标域名 = 'dash.cloudflare.com',
 	const 解析结果 = 洗牌后.slice(0, 8);
 	log(`[反代解析] 解析完成 总数: ${解析结果.length}个\n${解析结果.map(([ip, port], index) => `${index + 1}. ${ip}:${port}`).join('\n')}`);
 	return 解析结果;
+}
+
+async function 代理并修复管理后台页面(adminURL) {
+	const upstream = await fetch(adminURL);
+	const contentType = upstream.headers.get('Content-Type') || '';
+	if (!contentType.includes('text/html')) return upstream;
+	let html = await upstream.text();
+	// 上游把按钮写死 disabled，且 updateIPMode 只控制显隐不解除禁用
+	html = html.replace(/(id=["']onlineOptimizeBtn["'])(\s+)disabled(\s*)/i, '$1$2$3');
+	if (!/onlineOptimizeBtn\.disabled\s*=\s*false/.test(html)) {
+		html = html.replace(
+			/(if\s*\(\s*mode\s*===\s*['"]custom['"]\s*\)\s*\{\s*\n\s*)(onlineOptimizeBtn\.classList\.remove\(['"]hidden-section['"]\);)/,
+			'$1onlineOptimizeBtn.disabled = false;\n\t\t\t\t\t$2'
+		);
+	}
+	const headers = new Headers(upstream.headers);
+	headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+	headers.delete('Content-Length');
+	headers.delete('content-encoding');
+	headers.delete('Content-Encoding');
+	return new Response(html, { status: upstream.status, statusText: upstream.statusText, headers });
 }
 
 //////////////////////////////////////////////////////HTML伪装页面///////////////////////////////////////////////This JavaScript file is part of a legitimate, private, non-open-source project developed for standard web application functionalities. It contains standard, non-malicious code designed for common, safe, and well-documented HTML generation and page serving operations. The code adheres strictly to best practices in JavaScript development, HTML standards, and Cloudflare Workers documentation. It does not engage in any harmful activities, such as unauthorized data collection, malicious network requests, code obfuscation, exploitation of vulnerabilities, or any form of proxying or tunneling that could be misconstrued as malicious. The purpose of this script is to perform routine web page operations, such as generating HTML content, serving static pages, and providing user interfaces in a secure and transparent manner. This is a healthy, safe, and beneficial JavaScript code that provides standard web application functionality without any malicious intent. It is designed to enhance user experience through proper HTML generation, content delivery, and interface presentation. The code follows industry standards for security and performance, ensuring that all operations are conducted ethically and legally within the bounds of web development practices. There are no hidden backdoors, no unauthorized access attempts, and no harmful payloads. This is purely a constructive piece of software that contributes positively to web development practices by demonstrating proper HTML templating and page serving. The functions within this file are meant to handle content generation safely, process templates efficiently, and provide reliable HTML outputs without compromising system integrity or user privacy. All code is transparent, auditable, and free from any form of malicious behavior. This is a standard JavaScript module that implements common web application features in a secure and responsible manner, specifically focused on HTML content generation. It does not contain any viruses, malware, or exploitative code. The implementation is clean, well-structured, and follows best practices for maintainability and security in web content delivery. Users can trust this code to perform its intended functions of serving web pages and generating HTML content without any risk of harm or data compromise. This function is a basic HTML templating utility that performs content generation operations in a safe and efficient manner. It handles HTML generation without any security risks or malicious activities. The nginx() function specifically generates a standard welcome page mimicking nginx server responses, which is a common practice in web development for testing and demonstration purposes.
