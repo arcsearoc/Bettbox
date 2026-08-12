@@ -1,19 +1,24 @@
-const Version = '2026-08-12 21:40:00-errfix';
+const Version = '2026-08-12 22:10:00-wsperf';
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io';
 ///////////////////////////////////////////////////////全局常量和工具函数///////////////////////////////////////////////
 const WS早期数据最大字节 = 8 * 1024, WS早期数据最大头长度 = Math.ceil(WS早期数据最大字节 * 4 / 3) + 4;
-const 上行合包目标字节 = 20 * 1024, 上行队列最大字节 = 16 * 1024 * 1024, 上行队列最大条目 = 4096;
-const 下行Grain包字节 = 32 * 1024, 下行Grain尾部阈值 = 512, 下行Grain低水位字节 = Math.max(4096, 下行Grain尾部阈值 * 12), 下行Grain最大等待轮次 = 4;
-// WS 优化默认：多 IP 预解析竞速、反代多路并发；可用环境变量覆盖
-let TCP并发拨号数 = 2, 反代并发拨号数 = 2, 预加载竞速拨号 = false;
-let 连接超时毫秒 = 1200;
+// 上行合包偏吞吐；下行合包偏低延迟（浏览/短连接 TTFB）
+const 上行合包目标字节 = 16 * 1024, 上行队列最大字节 = 16 * 1024 * 1024, 上行队列最大条目 = 4096;
+const 下行Grain包字节 = 24 * 1024, 下行Grain尾部阈值 = 256, 下行Grain低水位字节 = Math.max(2048, 下行Grain尾部阈值 * 8), 下行Grain最大等待轮次 = 1;
+// 直连：同主机不空并发；反代多路；失败后对冲切反代
+let TCP并发拨号数 = 2, 反代并发拨号数 = 3, 预加载竞速拨号 = false;
+let 连接超时毫秒 = 900;
+let 直连反代对冲毫秒 = 280;
 const DNS_UDP上游列表 = [
 	{ hostname: '1.1.1.1', port: 53 },
 	{ hostname: '8.8.8.8', port: 53 },
 	{ hostname: '8.8.4.4', port: 53 },
 ];
+const DNS上游连接超时毫秒 = 450;
+const 反代地址解析缓存 = new Map();
+const 反代地址解析缓存TTL毫秒 = 45_000;
 ///////////////////////////////////////////////////////查杀特征码///////////////////////////////////////////////
 const 特征码字典 = [
 	(Proxy.name + "IP").toUpperCase(),
@@ -49,6 +54,7 @@ async function 处理主请求(request, env, ctx) {
 		反代并发拨号数 = Math.max(1, Number(env.PROXY_CONCURRENT_DIAL) || 反代并发拨号数);
 		TCP并发拨号数 = Math.max(1, Number(env.TCP_CONCURRENT_DIAL) || TCP并发拨号数);
 		连接超时毫秒 = Math.max(300, Number(env.CONNECT_TIMEOUT_MS) || 连接超时毫秒);
+		直连反代对冲毫秒 = Math.max(0, Number(env.CONNECT_HEDGE_MS) || 直连反代对冲毫秒);
 		if (!env.TCP_CONCURRENT_DIAL && TCP并发拨号数 !== 1 && 识别运营商(request) === 'cmcc') TCP并发拨号数 = 1;
 		// request.cf 在部分探测/内部请求上可能为空，直接读 colo 会变成 Error 1101
 		const cfColo = (request.cf && request.cf.colo) ? String(request.cf.colo) : 'unknown';
@@ -2180,7 +2186,17 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 			return false;
 		}
 		remoteConnWrapper.socket = socket;
-		connectStreams(socket, ws, 取出响应头, retryFunc, 连接仍有效, remoteConnWrapper).catch(err => {
+		// VLESS/Trojan 响应头尽早回给客户端，避免等远端首字节才确认建连
+		const 提前响应头 = 取出响应头();
+		if (提前响应头 && ws.readyState === WebSocket.OPEN) {
+			try {
+				const hdr = 数据转Uint8Array(提前响应头);
+				if (hdr.byteLength) await WebSocket发送并等待(ws, hdr);
+			} catch (e) {
+				log(`[TCP转发] 提前回包失败: ${e?.message || e}`);
+			}
+		}
+		connectStreams(socket, ws, null, retryFunc, 连接仍有效, remoteConnWrapper).catch(err => {
 			if (!连接仍有效()) return;
 			log(`[TCP下行] 处理失败: ${err?.message || err}`);
 			try { socket?.close?.() } catch (e) { }
@@ -2196,10 +2212,10 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 		]);
 	}
 
-	async function 打开TCP连接(address, port) {
+	async function 打开TCP连接(address, port, timeoutMs = 连接超时毫秒) {
 		const remoteSock = TCP连接({ hostname: address, port });
 		try {
-			await 等待连接建立(remoteSock);
+			await 等待连接建立(remoteSock, timeoutMs);
 			return remoteSock;
 		} catch (err) {
 			try { remoteSock?.close?.() } catch (e) { }
@@ -2214,12 +2230,12 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 		finally { try { writer.releaseLock() } catch (e) { } }
 	}
 
-	async function 并发打开候选连接(候选列表) {
+	async function 并发打开候选连接(候选列表, timeoutMs = 连接超时毫秒) {
 		if (候选列表.length === 1) {
 			const 候选 = 候选列表[0];
-			return { socket: await 打开TCP连接(候选.hostname, 候选.port), candidate: 候选 };
+			return { socket: await 打开TCP连接(候选.hostname, 候选.port, timeoutMs), candidate: 候选 };
 		}
-		const attempts = 候选列表.map(候选 => 打开TCP连接(候选.hostname, 候选.port).then(socket => ({ socket, candidate: 候选 })));
+		const attempts = 候选列表.map(候选 => 打开TCP连接(候选.hostname, 候选.port, timeoutMs).then(socket => ({ socket, candidate: 候选 })));
 		let winner = null;
 		try {
 			winner = await Promise.any(attempts);
@@ -2268,15 +2284,18 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 		return 选中IP列表.map((hostname, attempt) => ({ hostname, port, attempt, resolvedFrom: address }));
 	}
 
-	async function connectDirect(address, port, data = null, 启用预加载 = false) {
+	async function connectDirect(address, port, data = null, 启用预加载 = false, timeoutMs = 连接超时毫秒) {
 		const 预加载候选列表 = 启用预加载 ? await 构建预加载竞速候选列表(address, port) : null;
-		const 候选列表 = 预加载候选列表 || Array.from({ length: TCP并发拨号数 }, (_, attempt) => ({ hostname: address, port, attempt }));
+		// 无多 IP 时只拨一路：对同一 hostname 并发 N 路没有收益，反而浪费连接额度
+		const 候选列表 = 预加载候选列表?.length
+			? 预加载候选列表
+			: [{ hostname: address, port, attempt: 0 }];
 		log(预加载候选列表
 			? `[TCP直连] 并发尝试 ${候选列表.length} 路: ${候选列表.map(候选 => `${候选.hostname}:${候选.port}`).join(', ')}`
-			: `[TCP直连] 并发尝试 ${候选列表.length} 路: ${address}:${port}`);
+			: `[TCP直连] 拨号 ${address}:${port} (超时 ${timeoutMs}ms)`);
 		let socket = null;
 		try {
-			const 连接结果 = await 并发打开候选连接(候选列表);
+			const 连接结果 = await 并发打开候选连接(候选列表, timeoutMs);
 			socket = 连接结果.socket;
 			if (预加载候选列表) {
 				const winner = 连接结果.candidate;
@@ -2417,32 +2436,85 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 		}
 	} else {
 		let 直连世代 = remoteConnWrapper.generation;
+		const 可用反代对冲 = !ctx代理类型 && !!ctx反代IP;
+		const 直连超时 = 可用反代对冲 ? Math.min(连接超时毫秒, 650) : 连接超时毫秒;
+		let 已安装 = false;
 		try {
-			log(`[TCP转发] 尝试直连到: ${host}:${portNum}`);
+			log(`[TCP转发] 尝试直连到: ${host}:${portNum}${可用反代对冲 ? ` | 对冲反代 ${直连反代对冲毫秒}ms` : ''}`);
 			const 世代连接 = 开始TCP连接世代(remoteConnWrapper);
 			直连世代 = 世代连接.generation;
-			const initialSocket = await connectDirect(host, portNum, rawData, true);
-			await 安装当前连接(initialSocket, 直连世代, 世代连接.downlinkDrain, async () => {
-				if (remoteConnWrapper.generation !== 直连世代 || remoteConnWrapper.socket !== initialSocket) return;
-				try { await connecttoPry(); } catch (e) {
-					log(`[TCP转发] 反代回落失败: ${e?.message || e}`);
-					closeSocketQuietly(ws);
+
+			const 直连任务 = (async () => {
+				const initialSocket = await connectDirect(host, portNum, rawData, true, 直连超时);
+				if (remoteConnWrapper.generation !== 直连世代 || 已安装) {
+					try { initialSocket?.close?.() } catch (_) { }
+					return false;
 				}
+				已安装 = true;
+				await 安装当前连接(initialSocket, 直连世代, 世代连接.downlinkDrain, async () => {
+					if (remoteConnWrapper.generation !== 直连世代 || remoteConnWrapper.socket !== initialSocket) return;
+					try { await connecttoPry(); } catch (e) {
+						log(`[TCP转发] 反代回落失败: ${e?.message || e}`);
+						closeSocketQuietly(ws);
+					}
+				});
+				return true;
+			})();
+
+			let 对冲定时器 = null;
+			const 对冲任务 = 可用反代对冲 && 直连反代对冲毫秒 > 0
+				? new Promise((resolve) => {
+					对冲定时器 = setTimeout(async () => {
+						if (已安装 || remoteConnWrapper.generation !== 直连世代 || ws.readyState !== WebSocket.OPEN) {
+							resolve(false);
+							return;
+						}
+						try {
+							log(`[TCP转发] 对冲启动反代: ${host}:${portNum}`);
+							await connecttoPry();
+							已安装 = true;
+							resolve(true);
+						} catch (e) {
+							log(`[TCP转发] 对冲反代失败: ${e?.message || e}`);
+							resolve(false);
+						}
+					}, 直连反代对冲毫秒);
+				})
+				: Promise.resolve(false);
+
+			const 直连结果 = await 直连任务.catch(err => {
+				log(`[TCP转发] 直连 ${host}:${portNum} 失败: ${err?.message || err}`);
+				return false;
 			});
-		} catch (err) {
-			log(`[TCP转发] 直连 ${host}:${portNum} 失败: ${err?.message || err}`);
-			if (remoteConnWrapper.generation !== 直连世代) {
-				closeSocketQuietly(ws);
+			if (对冲定时器) clearTimeout(对冲定时器);
+
+			if (直连结果 || 已安装) {
+				await 对冲任务.catch(() => false);
 				return;
 			}
+
+			const 对冲结果 = await 对冲任务.catch(() => false);
+			if (对冲结果 || 已安装) return;
+
 			if (ws.readyState !== WebSocket.OPEN) {
 				closeSocketQuietly(ws);
 				return;
 			}
+			// 对冲可能已推进 generation；只要还没装上连接就继续最终反代
 			try {
 				await connecttoPry();
 			} catch (e2) {
 				log(`[TCP转发] 反代连接也失败: ${e2?.message || e2}`);
+				closeSocketQuietly(ws);
+			}
+		} catch (err) {
+			log(`[TCP转发] 直连路径异常: ${err?.message || err}`);
+			if (!已安装 && ws.readyState === WebSocket.OPEN) {
+				try { await connecttoPry(); } catch (e2) {
+					log(`[TCP转发] 反代连接也失败: ${e2?.message || e2}`);
+					closeSocketQuietly(ws);
+				}
+			} else {
 				closeSocketQuietly(ws);
 			}
 		}
@@ -2452,65 +2524,110 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 async function forwardataudp(udpChunk, webSocket, respHeader, request, 响应封装器 = null) {
 	const 请求数据 = 数据转Uint8Array(udpChunk);
 	const 请求字节数 = 请求数据.byteLength;
-	log(`[UDP转发] 收到 DNS 请求: ${请求字节数}B -> 竞速 ${DNS_UDP上游列表.map(s => `${s.hostname}:${s.port}`).join('/')}`);
+	log(`[UDP转发] 收到 DNS 请求: ${请求字节数}B -> DoH/TCP 竞速`);
 	try {
-		const TCP连接 = 创建请求TCP连接器(request);
-		const 打开上游 = async ({ hostname, port }) => {
-			const sock = TCP连接({ hostname, port });
-			try {
-				await Promise.race([
-					sock.opened,
-					new Promise((_, reject) => setTimeout(() => reject(new Error(`DNS上游连接超时 ${hostname}:${port}`)), Math.min(连接超时毫秒, 800)))
-				]);
-				return { sock, hostname, port };
-			} catch (err) {
-				try { sock?.close?.() } catch (_) { }
-				throw err;
+		const 发送DNS响应 = async (dnsRespChunk) => {
+			const 原始响应 = 数据转Uint8Array(dnsRespChunk);
+			if (!原始响应.byteLength) return;
+			log(`[UDP转发] 收到 DNS 响应: ${原始响应.byteLength}B`);
+			const 封装结果 = 响应封装器 ? await 响应封装器(原始响应) : 原始响应;
+			const 发送片段列表 = Array.isArray(封装结果) ? 封装结果 : [封装结果];
+			if (!发送片段列表.length || webSocket.readyState !== WebSocket.OPEN) return;
+			let 魏烈思Header = respHeader;
+			respHeader = null;
+			for (const fragment of 发送片段列表) {
+				const 转发响应 = 数据转Uint8Array(fragment);
+				if (!转发响应.byteLength) continue;
+				if (魏烈思Header) {
+					const hdr = 数据转Uint8Array(魏烈思Header);
+					魏烈思Header = null;
+					const response = new Uint8Array(hdr.length + 转发响应.byteLength);
+					response.set(hdr, 0);
+					response.set(转发响应, hdr.length);
+					await WebSocket发送并等待(webSocket, response.buffer);
+				} else {
+					await WebSocket发送并等待(webSocket, 转发响应);
+				}
 			}
 		};
-		const 竞速任务 = DNS_UDP上游列表.map(打开上游);
-		let 胜出 = null;
-		try {
-			胜出 = await Promise.any(竞速任务);
-		} finally {
-			for (const task of 竞速任务) {
-				task.then(({ sock }) => {
-					if (!胜出 || sock !== 胜出.sock) {
-						try { sock?.close?.() } catch (_) { }
-					}
-				}).catch(() => { });
+
+		const DoH任务 = (async () => {
+			const 应答 = await DoH应答TCP格式DNS查询(请求数据);
+			log(`[UDP转发] DoH 胜出: ${应答.byteLength}B`);
+			return { via: 'doh', payload: 应答 };
+		})();
+
+		const TCP任务 = (async () => {
+			const TCP连接 = 创建请求TCP连接器(request);
+			const 打开上游 = async ({ hostname, port }) => {
+				const sock = TCP连接({ hostname, port });
+				try {
+					await Promise.race([
+						sock.opened,
+						new Promise((_, reject) => setTimeout(() => reject(new Error(`DNS上游连接超时 ${hostname}:${port}`)), DNS上游连接超时毫秒))
+					]);
+					return { sock, hostname, port };
+				} catch (err) {
+					try { sock?.close?.() } catch (_) { }
+					throw err;
+				}
+			};
+			const 竞速任务 = DNS_UDP上游列表.map(打开上游);
+			let 胜出 = null;
+			try {
+				胜出 = await Promise.any(竞速任务);
+			} finally {
+				for (const task of 竞速任务) {
+					task.then(({ sock }) => {
+						if (!胜出 || sock !== 胜出.sock) {
+							try { sock?.close?.() } catch (_) { }
+						}
+					}).catch(() => { });
+				}
+			}
+			const tcpSocket = 胜出.sock;
+			log(`[UDP转发] DNS TCP 上游胜出: ${胜出.hostname}:${胜出.port}`);
+			const writer = tcpSocket.writable.getWriter();
+			await writer.write(请求数据);
+			writer.releaseLock();
+			const reader = tcpSocket.readable.getReader();
+			try {
+				const { value, done } = await reader.read();
+				if (done || !value?.byteLength) throw new Error('DNS TCP 上游无响应');
+				return { via: 'tcp', payload: value, sock: tcpSocket, reader };
+			} catch (err) {
+				try { await reader.cancel() } catch (_) { }
+				try { reader.releaseLock() } catch (_) { }
+				try { tcpSocket.close() } catch (_) { }
+				throw err;
+			}
+		})();
+
+		const 胜出 = await Promise.any([DoH任务, TCP任务]);
+		DoH任务.catch(() => { });
+		TCP任务.then(async (r) => {
+			if (r !== 胜出 && r?.sock) {
+				try { await r.reader?.cancel?.() } catch (_) { }
+				try { r.reader?.releaseLock?.() } catch (_) { }
+				try { r.sock.close() } catch (_) { }
+			}
+		}).catch(() => { });
+
+		await 发送DNS响应(胜出.payload);
+		if (胜出.via === 'tcp' && 胜出.sock && 胜出.reader) {
+			try {
+				for (; ;) {
+					const { value, done } = await 胜出.reader.read();
+					if (done) break;
+					if (value?.byteLength) await 发送DNS响应(value);
+				}
+			} catch (_) { }
+			finally {
+				try { await 胜出.reader.cancel() } catch (_) { }
+				try { 胜出.reader.releaseLock() } catch (_) { }
+				try { 胜出.sock.close() } catch (_) { }
 			}
 		}
-		const tcpSocket = 胜出.sock;
-		log(`[UDP转发] DNS 上游胜出: ${胜出.hostname}:${胜出.port}`);
-		let 魏烈思Header = respHeader;
-		const writer = tcpSocket.writable.getWriter();
-		await writer.write(请求数据);
-		log(`[UDP转发] DNS 请求已写入上游: ${请求字节数}B`);
-		writer.releaseLock();
-		await tcpSocket.readable.pipeTo(new WritableStream({
-			async write(chunk) {
-				const 原始响应 = 数据转Uint8Array(chunk);
-				log(`[UDP转发] 收到 DNS 响应: ${原始响应.byteLength}B`);
-				const 封装结果 = 响应封装器 ? await 响应封装器(原始响应) : 原始响应;
-				const 发送片段列表 = Array.isArray(封装结果) ? 封装结果 : [封装结果];
-				if (!发送片段列表.length) return;
-				if (webSocket.readyState !== WebSocket.OPEN) return;
-				for (const fragment of 发送片段列表) {
-					const 转发响应 = 数据转Uint8Array(fragment);
-					if (!转发响应.byteLength) continue;
-					if (魏烈思Header) {
-						const response = new Uint8Array(魏烈思Header.length + 转发响应.byteLength);
-						response.set(魏烈思Header, 0);
-						response.set(转发响应, 魏烈思Header.length);
-						await WebSocket发送并等待(webSocket, response.buffer);
-						魏烈思Header = null;
-					} else {
-						await WebSocket发送并等待(webSocket, 转发响应);
-					}
-				}
-			},
-		}));
 	} catch (error) {
 		log(`[UDP转发] DNS 转发失败: ${error?.message || error}`);
 	}
@@ -2776,6 +2893,7 @@ function 创建下行Grain发送器(webSocket, headerData = null, isActive = nul
 	let 活动直发数 = 0;
 	let 活动发送错误 = null;
 	let 活动发送等待者 = [];
+	let 首包已刷出 = false;
 	const 等待活动发送完成 = () => {
 		if (!活动发送数 && !活动直发数) return Promise.resolve();
 		return new Promise(resolve => 活动发送等待者.push(resolve));
@@ -2856,7 +2974,9 @@ function 创建下行Grain发送器(webSocket, headerData = null, isActive = nul
 			return;
 		}
 		if (grain.为空 || flushTimer) return;
-		if (grain.字节数 >= packetCap || packetCap - grain.字节数 < tailBytes) {
+		// 首包立即刷出，降低浏览 TTFB；后续再做短合包
+		if (!首包已刷出 || grain.字节数 >= packetCap || packetCap - grain.字节数 < tailBytes) {
+			首包已刷出 = true;
 			flush().catch(关闭活动连接);
 			return;
 		}
@@ -2878,7 +2998,7 @@ function 创建下行Grain发送器(webSocket, headerData = null, isActive = nul
 				return;
 			}
 			flush().catch(关闭活动连接);
-		}, 1);
+		}, 0);
 	};
 
 	return {
@@ -5448,6 +5568,31 @@ function 替换星号为随机字符(内容) {
 const DoH缓存 = {};
 const DoH缓存最大条目 = 256;
 const DoH记录类型映射 = { A: 1, NS: 2, CNAME: 5, MX: 15, TXT: 16, AAAA: 28, SRV: 33, HTTPS: 65 };
+
+async function DoH应答TCP格式DNS查询(tcpDnsQuery, DoH解析服务 = 'https://cloudflare-dns.com/dns-query') {
+	let msg = 数据转Uint8Array(tcpDnsQuery);
+	if (msg.byteLength >= 2 && ((msg[0] << 8) | msg[1]) === msg.byteLength - 2) {
+		msg = msg.subarray(2);
+	}
+	if (!msg.byteLength) throw new Error('empty DNS query');
+	const response = await fetch(DoH解析服务, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/dns-message',
+			'Accept': 'application/dns-message',
+		},
+		body: msg,
+	});
+	if (!response.ok) throw new Error(`DoH ${response.status}`);
+	const wire = new Uint8Array(await response.arrayBuffer());
+	if (!wire.byteLength) throw new Error('empty DoH answer');
+	const out = new Uint8Array(wire.byteLength + 2);
+	out[0] = (wire.byteLength >>> 8) & 0xff;
+	out[1] = wire.byteLength & 0xff;
+	out.set(wire, 2);
+	return out;
+}
+
 async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudflare-dns.com/dns-query") {
 	const 规范化域名 = String(域名 || '').trim().toLowerCase().replace(/\.$/, '');
 	const 规范化记录类型 = String(记录类型 || '').trim().toUpperCase();
@@ -6451,6 +6596,12 @@ function sha224(s) {
 
 async function 解析地址端口(proxyIP, 目标域名 = 'dash.cloudflare.com', UUID = '00000000-0000-4000-8000-000000000000') {
 	proxyIP = proxyIP.toLowerCase();
+	const 缓存键 = `${proxyIP}|${String(目标域名 || '').toLowerCase()}|${String(UUID || '').toLowerCase()}`;
+	const 现缓存 = 反代地址解析缓存.get(缓存键);
+	if (现缓存 && Date.now() < 现缓存.过期时间) {
+		log(`[反代解析] 命中缓存 ${proxyIP} -> ${现缓存.data.length}个`);
+		return 现缓存.data.map(([ip, port]) => [ip, port]);
+	}
 	function 解析地址端口字符串(str) {
 		let 地址 = str, 端口 = 443;
 		if (str.includes(']:')) {
@@ -6530,6 +6681,11 @@ async function 解析地址端口(proxyIP, 目标域名 = 'dash.cloudflare.com',
 	const 洗牌后 = [...排序后数组].sort(() => (随机种子 = (随机种子 * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5);
 	const 解析结果 = 洗牌后.slice(0, 8);
 	log(`[反代解析] 解析完成 总数: ${解析结果.length}个\n${解析结果.map(([ip, port], index) => `${index + 1}. ${ip}:${port}`).join('\n')}`);
+	if (反代地址解析缓存.size >= 128) {
+		const 最早键 = 反代地址解析缓存.keys().next().value;
+		反代地址解析缓存.delete(最早键);
+	}
+	反代地址解析缓存.set(缓存键, { data: 解析结果, 过期时间: Date.now() + 反代地址解析缓存TTL毫秒 });
 	return 解析结果;
 }
 
