@@ -1,4 +1,4 @@
-const Version = '2026-08-12 21:40:00-errfix';
+const Version = '2026-08-12 22:25:00-cmip';
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io';
@@ -13,6 +13,53 @@ const DNS_UDP上游列表 = [
 	{ hostname: '1.1.1.1', port: 53 },
 	{ hostname: '8.8.8.8', port: 53 },
 	{ hostname: '8.8.4.4', port: 53 },
+];
+// 内置 CF 移动优选（2026-08-12 抓取自 cf.090227.xyz/cmcc + addressesapi CM-Default）
+const 内置CF移动优选IP = [
+	'104.17.223.252:443#CF 移动优选',
+	'104.19.146.38:443#CF 移动优选',
+	'198.41.209.45:443#CF 移动优选',
+	'104.17.104.176:443#CF 移动优选',
+	'91.193.58.27:443#CF 移动优选',
+	'104.19.147.229:443#CF 移动优选',
+	'104.17.51.7:443#CF 移动优选',
+	'91.193.59.244:443#CF 移动优选',
+	'104.16.255.43:443#CF 移动优选',
+	'104.17.184.57:443#CF 移动优选',
+	'104.17.96.250:443#CF 移动优选',
+	'104.17.55.8:443#CF 移动优选',
+	'104.19.33.168:443#CF 移动优选',
+	'104.17.168.139:443#CF 移动优选',
+	'104.17.52.230:443#CF 移动优选',
+	'104.16.254.37:443#CF 移动优选',
+	'104.17.61.248:443#CF 移动优选',
+	'104.16.251.213:443#CF 移动优选',
+	'104.17.108.238:443#CF 移动优选',
+	'104.17.165.145:443#CF 移动优选',
+	'172.67.238.209:443#CF 移动优选',
+	'198.41.209.231:443#CF 移动优选',
+	'162.159.229.19:443#CF 移动优选',
+	'198.41.208.141:443#CF 移动优选',
+	'198.41.209.91:443#CF 移动优选',
+];
+const 内置CF移动优选CIDR = [
+	'91.193.58.0/23',
+	'172.66.0.0/22',
+	'104.16.144.0/20',
+	'104.16.240.0/20',
+	'104.17.16.0/20',
+	'104.17.48.0/20',
+	'104.17.96.0/20',
+	'104.17.112.0/20',
+	'104.17.144.0/20',
+	'104.17.160.0/20',
+	'104.17.176.0/20',
+	'104.17.208.0/20',
+	'104.18.33.0/24',
+	'104.19.32.0/22',
+	'104.19.48.0/21',
+	'104.19.144.0/21',
+	'198.41.208.0/23',
 ];
 ///////////////////////////////////////////////////////查杀特征码///////////////////////////////////////////////
 const 特征码字典 = [
@@ -300,7 +347,7 @@ async function 处理主请求(request, env, ctx) {
 						return new Response(JSON.stringify(config_JSON, null, 2), { status: 200, headers: { 'Content-Type': 'application/json' } });
 					} else if (区分大小写访问路径 === 'admin/ADD.txt') {// 处理 admin/ADD.txt 请求，返回本地优选IP
 						let 本地优选IP = await env.KV.get('ADD.txt') || 'null';
-						if (本地优选IP == 'null') 本地优选IP = (await 生成随机IP(request, config_JSON.优选订阅生成.本地IP库.随机数量, config_JSON.优选订阅生成.本地IP库.指定端口))[1];
+						if (本地优选IP == 'null') 本地优选IP = 内置CF移动优选IP.join('\n');
 						return new Response(本地优选IP, { status: 200, headers: { 'Content-Type': 'text/plain;charset=utf-8', 'asn': String(request.cf?.asn ?? '') } });
 					} else if (访问路径 === 'admin/cf.json') {// CF配置文件
 						return new Response(JSON.stringify(request.cf, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
@@ -366,11 +413,10 @@ async function 处理主请求(request, env, ctx) {
 							let 完整优选IP = [], 其他节点LINK = '', 反代IP池 = [];
 
 							if (!url.searchParams.has('sub') && config_JSON.优选订阅生成.local) { // 本地生成订阅
+								const kvADD = await env.KV.get('ADD.txt');
 								const 完整优选列表 = config_JSON.优选订阅生成.本地IP库.随机IP ? (
 									await 生成随机IP(request, config_JSON.优选订阅生成.本地IP库.随机数量, config_JSON.优选订阅生成.本地IP库.指定端口)
-								)[0] : await env.KV.get('ADD.txt') ? await 整理成数组(await env.KV.get('ADD.txt')) : (
-									await 生成随机IP(request, config_JSON.优选订阅生成.本地IP库.随机数量, config_JSON.优选订阅生成.本地IP库.指定端口)
-								)[0];
+								)[0] : kvADD ? await 整理成数组(kvADD) : [...内置CF移动优选IP];
 								const 优选API = [], 优选IP = [], 其他节点 = [];
 								for (const 元素 of 完整优选列表) {
 									if (元素.toLowerCase().startsWith('sub://')) {
@@ -5890,16 +5936,73 @@ function 识别运营商(request) {
 async function 生成随机IP(request, count = 16, 指定端口 = -1) {
 	const url = new URL(request.url);
 	const 查询参数运营商 = String(url.searchParams.get('cnIspCode') || '').toLowerCase();
-	const 运营商文件标识 = ['ct', 'cu', 'cmcc', 'cf'].includes(查询参数运营商) ? 查询参数运营商 : 识别运营商(request);
+	// 默认使用内置移动优选；仅显式指定 ct/cu/cf 时走其它来源
+	const 显式其它运营商 = ['ct', 'cu', 'cf'].includes(查询参数运营商);
+	const 运营商文件标识 = 显式其它运营商
+		? 查询参数运营商
+		: (['cmcc'].includes(查询参数运营商) ? 'cmcc' : (识别运营商(request) === 'cmcc' || !显式其它运营商 ? 'cmcc' : 识别运营商(request)));
 	const 运营商名称映射 = {
 		cmcc: 'CF移动优选',
 		cu: 'CF联通优选',
 		ct: 'CF电信优选',
 		cf: 'CF官方优选',
 	};
-	const cidr_url = 运营商文件标识 === 'cf' ? `https://raw.githubusercontent.com/${特征码字典[1]}/${特征码字典[1]}/main/CF-CIDR.txt` : `https://raw.githubusercontent.com/${特征码字典[1]}/${特征码字典[1]}/main/CF-CIDR/${运营商文件标识}.txt`;
 	const cfname = 运营商名称映射[运营商文件标识] || 'CF官方优选';
 	const cfport = [443, 2053, 2083, 2087, 2096, 8443];
+	const 目标数量 = Math.max(1, Number(count) || 16);
+
+	const 改写端口备注 = (条目) => {
+		const raw = String(条目 || '').trim();
+		if (!raw) return null;
+		const hash = raw.indexOf('#');
+		const 地址端口 = hash >= 0 ? raw.slice(0, hash) : raw;
+		const 备注 = hash >= 0 ? raw.slice(hash) : `#${cfname}`;
+		let host = 地址端口, portText = '';
+		if (地址端口.startsWith('[')) {
+			const m = 地址端口.match(/^(\[[^\]]+\])(?::(\d+))?$/);
+			if (!m) return null;
+			host = m[1];
+			portText = m[2] || '';
+		} else {
+			const colon = 地址端口.lastIndexOf(':');
+			if (colon > -1 && 地址端口.indexOf(':') === colon) {
+				host = 地址端口.slice(0, colon);
+				portText = 地址端口.slice(colon + 1);
+			}
+		}
+		const 端口 = 指定端口 === -1
+			? (Number(portText) || 443)
+			: 指定端口;
+		return `${host}:${端口}${备注 || `#${cfname}`}`;
+	};
+
+	// 移动优选：优先使用代码内置 IP，不足再用内置 CIDR 补齐（不依赖外网拉取）
+	if ((运营商文件标识 === 'cmcc' || !显式其它运营商) && 内置CF移动优选IP.length) {
+		const 洗牌 = [...内置CF移动优选IP].sort(() => Math.random() - 0.5);
+		const 结果 = [];
+		for (let i = 0; i < Math.min(目标数量, 洗牌.length); i++) {
+			const line = 改写端口备注(洗牌[i]);
+			if (line) 结果.push(line);
+		}
+		const cidrList = 内置CF移动优选CIDR.length ? 内置CF移动优选CIDR : ['104.16.0.0/13'];
+		const generateRandomIPFromCIDR = (cidr) => {
+			const [baseIP, prefixLength] = cidr.split('/'), prefix = parseInt(prefixLength), hostBits = 32 - prefix;
+			const ipInt = baseIP.split('.').reduce((a, p, i) => a | (parseInt(p) << (24 - i * 8)), 0);
+			const randomOffset = Math.floor(Math.random() * Math.pow(2, hostBits));
+			const mask = (0xFFFFFFFF << hostBits) >>> 0, randomIP = (((ipInt & mask) >>> 0) + randomOffset) >>> 0;
+			return [(randomIP >>> 24) & 0xFF, (randomIP >>> 16) & 0xFF, (randomIP >>> 8) & 0xFF, randomIP & 0xFF].join('.');
+		};
+		while (结果.length < 目标数量) {
+			const ip = generateRandomIPFromCIDR(cidrList[Math.floor(Math.random() * cidrList.length)]);
+			const 目标端口 = 指定端口 === -1
+				? cfport[Math.floor(Math.random() * cfport.length)]
+				: 指定端口;
+			结果.push(`${ip}:${目标端口}#${cfname}${结果.length + 1}`);
+		}
+		return [结果, 结果.join('\n')];
+	}
+
+	const cidr_url = 运营商文件标识 === 'cf' ? `https://raw.githubusercontent.com/${特征码字典[1]}/${特征码字典[1]}/main/CF-CIDR.txt` : `https://raw.githubusercontent.com/${特征码字典[1]}/${特征码字典[1]}/main/CF-CIDR/${运营商文件标识}.txt`;
 	let cidrList = [];
 	try { const res = await fetch(cidr_url); cidrList = res.ok ? await 整理成数组(await res.text()) : ['104.16.0.0/13'] } catch { cidrList = ['104.16.0.0/13'] }
 
@@ -5910,7 +6013,7 @@ async function 生成随机IP(request, count = 16, 指定端口 = -1) {
 		const mask = (0xFFFFFFFF << hostBits) >>> 0, randomIP = (((ipInt & mask) >>> 0) + randomOffset) >>> 0;
 		return [(randomIP >>> 24) & 0xFF, (randomIP >>> 16) & 0xFF, (randomIP >>> 8) & 0xFF, randomIP & 0xFF].join('.');
 	};
-	const randomIPs = Array.from({ length: count }, (_, index) => {
+	const randomIPs = Array.from({ length: 目标数量 }, (_, index) => {
 		const ip = generateRandomIPFromCIDR(cidrList[Math.floor(Math.random() * cidrList.length)]);
 		const 目标端口 = 指定端口 === -1
 			? cfport[Math.floor(Math.random() * cfport.length)]
