@@ -2360,7 +2360,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 					return socket;
 				} catch (err) {
 					try { socket?.close?.() } catch (e) { }
-					console.error(`[反代连接] 本批连接失败: ${err.message || err}`);
+					console.log(`[反代连接] 本批连接失败(试下一批): ${err.message || err}`);
 				}
 			}
 		}
@@ -2472,7 +2472,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 				await connecttoPry();
 			});
 		} catch (err) {
-			console.error(`[TCP转发] 直连 ${host}:${portNum} 失败: ${err?.message || err}`);
+			console.log(`[TCP转发] 直连 ${host}:${portNum} 失败(转反代): ${err?.message || err}`);
 			if (remoteConnWrapper.generation !== 直连世代) throw err;
 			if (err instanceof Error && err.name === '预加载解析为空') {
 				closeSocketQuietly(ws);
