@@ -167,7 +167,7 @@ export default {
 				return await 处理WS请求(request, userID, url, 反代上下文);
 			} catch (error) {
 				// 101 响应前的异常兜底：返回干净错误响应，避免 CF 记为 outcome:"exception" 拉高错误率
-				log(`[WebSocket] 建连失败: ${error?.message || error}`);
+				console.error(`[WebSocket] 建连失败: ${error?.message || error}\n${error?.stack || ''}`);
 				return new Response(null, { status: 502, headers: { 'Cache-Control': 'no-store' } });
 			}
 		} else if (管理员密码 && !访问路径.startsWith('admin/') && 访问路径 !== 'login' && request.method === 'POST') {// gRPC/XHTTP代理
@@ -1739,9 +1739,9 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 		WS显式队列条目 = 0;
 		const msg = err?.message || `${err}`;
 		if (msg.includes('Network connection lost') || msg.includes('ReadableStream is closed')) {
-			log(`[WS转发] 连接结束: ${msg}`);
+			console.error(`[WS转发] 连接结束: ${msg}`);
 		} else {
-			log(`[WS转发] 处理失败: ${msg}`);
+			console.error(`[WS转发] 处理失败: ${msg}`);
 		}
 		上行写入队列.清空();
 		释放远端写入器();
@@ -2229,7 +2229,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 		remoteConnWrapper.socket = socket;
 		connectStreams(socket, ws, 取出响应头, retryFunc, 连接仍有效, remoteConnWrapper).catch(err => {
 			if (!连接仍有效()) return;
-			log(`[TCP下行] 处理失败: ${err?.message || err}`);
+			console.error(`[TCP下行] 处理失败: ${err?.message || err}`);
 			try { socket?.close?.() } catch (e) { }
 			closeSocketQuietly(ws);
 		});
@@ -2360,7 +2360,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 					return socket;
 				} catch (err) {
 					try { socket?.close?.() } catch (e) { }
-					log(`[反代连接] 本批连接失败: ${err.message || err}`);
+					console.error(`[反代连接] 本批连接失败: ${err.message || err}`);
 				}
 			}
 		}
@@ -2472,7 +2472,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 				await connecttoPry();
 			});
 		} catch (err) {
-			log(`[TCP转发] 直连 ${host}:${portNum} 失败: ${err.message}`);
+			console.error(`[TCP转发] 直连 ${host}:${portNum} 失败: ${err?.message || err}`);
 			if (remoteConnWrapper.generation !== 直连世代) throw err;
 			if (err instanceof Error && err.name === '预加载解析为空') {
 				closeSocketQuietly(ws);
