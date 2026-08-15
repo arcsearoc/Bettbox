@@ -1,4 +1,4 @@
-const Version = '2026-08-09 02:15:00-wsopt';
+const Version = '2026-08-15 17:10:00-wsdisc';
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 // 优选IP 结果的实例级短缓存（key=优选API URL，value={data, expire}），TTL 60s，降低高频订阅拉取时的重复子请求数
 const 优选API缓存 = new Map();
@@ -1737,16 +1737,18 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 		WS显式传输停止接收 = true;
 		WS显式队列字节 = 0;
 		WS显式队列条目 = 0;
-		const msg = err?.message || `${err}`;
+		// 先抬世代停下行，避免 peer 已断后继续 send 再抛一次 Network connection lost
+		上行写入队列.清空();
+		释放远端写入器();
+		失效远端连接();
+		try { 木马UDP上下文.反代Socket?.close() } catch (e) { }
+		const raw = (err && typeof err === 'object' && 'error' in err && err.error) ? err.error : err;
+		const msg = raw?.message || err?.message || `${raw || err}`;
 		if (msg.includes('Network connection lost') || msg.includes('ReadableStream is closed')) {
 			console.log(`[WS转发] 连接结束: ${msg}`);
 		} else {
 			console.error(`[WS转发] 处理失败: ${msg}`);
 		}
-		上行写入队列.清空();
-		释放远端写入器();
-		失效远端连接();
-		try { 木马UDP上下文.反代Socket?.close() } catch (e) { }
 		closeSocketQuietly(serverSock);
 	};
 
@@ -1790,8 +1792,18 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 	serverSock.addEventListener('message', (event) => {
 		入队WS显式传输(event.data);
 	});
-	serverSock.addEventListener('close', () => {
-		closeSocketQuietly(serverSock);
+	serverSock.addEventListener('close', (event) => {
+		// allowHalfOpen: 必须回 Close；同时立刻抬世代，打断可能正在进行的下行 send
+		WS显式传输停止接收 = true;
+		失效远端连接();
+		try {
+			const code = Number.isInteger(event?.code) ? event.code : undefined;
+			const reason = typeof event?.reason === 'string' ? event.reason : undefined;
+			if (serverSock.readyState === WebSocket.OPEN || serverSock.readyState === WebSocket.CLOSING) {
+				if (code !== undefined) serverSock.close(code, reason);
+				else serverSock.close();
+			}
+		} catch (_) { }
 		收尾WS显式传输();
 	});
 	serverSock.addEventListener('error', (err) => {
@@ -2564,9 +2576,21 @@ function formatIdentifier(arr, offset = 0) {
 	return `${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}`;
 }
 
+function 是网络断连错误(err) {
+	const msg = err?.message || `${err || ''}`;
+	return msg.includes('Network connection lost') || msg.includes('The script will never generate a response');
+}
+
 async function WebSocket发送并等待(webSocket, payload) {
-	const sendResult = webSocket.send(payload);
-	if (sendResult && typeof sendResult.then === 'function') await sendResult;
+	// peer 已断时 readyState 仍可能短暂为 OPEN；send 会抛 DISCONNECTED → Network connection lost
+	if (!webSocket || webSocket.readyState !== WebSocket.OPEN) return;
+	try {
+		const sendResult = webSocket.send(payload);
+		if (sendResult && typeof sendResult.then === 'function') await sendResult;
+	} catch (err) {
+		if (是网络断连错误(err)) return;
+		throw err;
+	}
 }
 
 function 创建Grain收纳器(容量, 复制合包结果 = false) {
@@ -2834,7 +2858,8 @@ function 创建下行Grain发送器(webSocket, headerData = null, isActive = nul
 
 	const 发送原始块 = async (chunk) => {
 		if (!当前发送器有效()) return;
-		if (webSocket.readyState !== WebSocket.OPEN) throw new Error('ws.readyState is not open');
+		// 客户端已断：静默返回，勿再 throw（否则会变成二次 Network connection lost / uncaught）
+		if (webSocket.readyState !== WebSocket.OPEN) return;
 		chunk = 附加响应头(chunk);
 		await WebSocket发送并等待(webSocket, chunk);
 	};
@@ -3039,7 +3064,9 @@ async function connectStreams(remoteSocket, webSocket, headerData, retryFunc, is
 	} catch (err) { readError = err }
 	finally {
 		if (当前连接仍有效() && webSocket.readyState === WebSocket.OPEN) {
-			try { await 下行发送器.停止并刷新() } catch (err) { readError ||= err }
+			try { await 下行发送器.停止并刷新() } catch (err) {
+				if (!是网络断连错误(err)) readError ||= err;
+			}
 		}
 		if (remoteConnWrapper?.downlinkController === 下行控制器) remoteConnWrapper.downlinkController = null;
 		try { await reader.cancel() } catch (e) { }
@@ -3051,11 +3078,11 @@ async function connectStreams(remoteSocket, webSocket, headerData, retryFunc, is
 			await retryFunc();
 			return;
 		} catch (err) {
-			readError ||= err;
+			if (!是网络断连错误(err)) readError ||= err;
 		}
 	}
 	if (!当前连接仍有效()) return;
-	if (readError) log(`[TCP下行] 读取失败: ${readError?.message || readError}`);
+	if (readError && !是网络断连错误(readError)) log(`[TCP下行] 读取失败: ${readError?.message || readError}`);
 	closeSocketQuietly(webSocket);
 }
 

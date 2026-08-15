@@ -1,6 +1,7 @@
 name = "v20251104"
 main = "_worker.js"
-compatibility_date = "2025-11-04"
+# >= 2026-04-07 默认启用 web_socket_auto_reply_to_close；本 Worker 用 allowHalfOpen 代理，仍手动回 Close
+compatibility_date = "2026-08-15"
 keep_vars = true
 
 #[[kv_namespaces]]
