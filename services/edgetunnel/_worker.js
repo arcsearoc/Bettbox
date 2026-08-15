@@ -1739,7 +1739,7 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 		WS显式队列条目 = 0;
 		const msg = err?.message || `${err}`;
 		if (msg.includes('Network connection lost') || msg.includes('ReadableStream is closed')) {
-			console.error(`[WS转发] 连接结束: ${msg}`);
+			console.log(`[WS转发] 连接结束: ${msg}`);
 		} else {
 			console.error(`[WS转发] 处理失败: ${msg}`);
 		}
