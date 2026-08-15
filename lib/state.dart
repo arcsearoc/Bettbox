@@ -874,6 +874,18 @@ class GlobalState {
       }
     }
 
+    // 排除中国流量：国内域名/IP 直连，不进隧道。
+    // 海外 Worker 直连国内目标必然失败再走反代兜底，绕行延迟高且多耗 subrequest。
+    if (config.vpnProps.excludeChina) {
+      const cnDirectRules = [
+        'DOMAIN-SUFFIX,wanmei.net,DIRECT',
+        'DOMAIN-SUFFIX,todesk.com,DIRECT',
+        'GEOSITE,geolocation-cn,DIRECT',
+        'GEOIP,CN,DIRECT',
+      ];
+      rules = [...cnDirectRules, ...rules];
+    }
+
     if (config.vpnProps.disableQuic) {
       final isRussian =
           config.appSetting.locale?.toLowerCase().startsWith('ru') ?? false;
