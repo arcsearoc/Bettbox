@@ -1,4 +1,4 @@
-const Version = '2026-08-15 17:10:00-wsdisc';
+const Version = '2026-08-15 17:20:00-wsdisc';
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 // 优选IP 结果的实例级短缓存（key=优选API URL，value={data, expire}），TTL 60s，降低高频订阅拉取时的重复子请求数
 const 优选API缓存 = new Map();
@@ -1744,7 +1744,7 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 		try { 木马UDP上下文.反代Socket?.close() } catch (e) { }
 		const raw = (err && typeof err === 'object' && 'error' in err && err.error) ? err.error : err;
 		const msg = raw?.message || err?.message || `${raw || err}`;
-		if (msg.includes('Network connection lost') || msg.includes('ReadableStream is closed')) {
+		if (是连接已结束错误(raw) || 是连接已结束错误(err)) {
 			console.log(`[WS转发] 连接结束: ${msg}`);
 		} else {
 			console.error(`[WS转发] 处理失败: ${msg}`);
@@ -2236,7 +2236,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 		if (remoteConnWrapper.generation !== generation || ws.readyState !== WebSocket.OPEN) {
 			try { socket?.close?.() } catch (e) { }
 			if (remoteConnWrapper.generation === generation) remoteConnWrapper.socket = null;
-			throw new Error('connection superseded or client closed');
+			return false;
 		}
 		remoteConnWrapper.socket = socket;
 		connectStreams(socket, ws, 取出响应头, retryFunc, 连接仍有效, remoteConnWrapper).catch(err => {
@@ -2283,6 +2283,8 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 		try {
 			winner = await Promise.any(attempts);
 			return winner;
+		} catch (err) {
+			throw 汇总竞速失败(err, 候选列表);
 		} finally {
 			if (winner) {
 				for (const attempt of attempts) {
@@ -2484,13 +2486,13 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 				await connecttoPry();
 			});
 		} catch (err) {
+			const 客户端已走 = remoteConnWrapper.generation !== 直连世代 || ws.readyState !== WebSocket.OPEN;
+			if (客户端已走 || 是连接已结束错误(err)) return;
 			console.log(`[TCP转发] 直连 ${host}:${portNum} 失败(转反代): ${err?.message || err}`);
-			if (remoteConnWrapper.generation !== 直连世代) throw err;
 			if (err instanceof Error && err.name === '预加载解析为空') {
 				closeSocketQuietly(ws);
-				throw err;
+				return;
 			}
-			if (ws.readyState !== WebSocket.OPEN) throw err;
 			await connecttoPry();
 		}
 	}
@@ -2579,6 +2581,22 @@ function formatIdentifier(arr, offset = 0) {
 function 是网络断连错误(err) {
 	const msg = err?.message || `${err || ''}`;
 	return msg.includes('Network connection lost') || msg.includes('The script will never generate a response');
+}
+
+function 是连接已结束错误(err) {
+	const msg = err?.message || `${err || ''}`;
+	return 是网络断连错误(err)
+		|| msg.includes('ReadableStream is closed')
+		|| msg.includes('connection superseded or client closed')
+		|| msg.includes('ws.readyState is not open');
+}
+
+function 汇总竞速失败(err, 候选列表 = []) {
+	const 原因列表 = Array.isArray(err?.errors) && err.errors.length
+		? err.errors.map(item => item?.message || `${item}`)
+		: [err?.message || `${err || 'unknown'}`];
+	const 目标 = 候选列表.map(候选 => `${候选.hostname}:${候选.port}`).join(',');
+	return new Error(`TCP竞速全部失败${目标 ? ` [${目标}]` : ''}: ${原因列表.join(' | ')}`);
 }
 
 async function WebSocket发送并等待(webSocket, payload) {
